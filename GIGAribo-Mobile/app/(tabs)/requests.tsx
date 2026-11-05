@@ -60,6 +60,14 @@ export default function RequestsScreen() {
             {requests.map((request) => {
               const service = getService(request.serviceId);
               if (!service) return null;
+              // Once the provider answers, show their answer instead of the plain "Placed" status.
+              const answer = request.status === 'Placed (demo)' ? request.providerStatus : undefined;
+              const statusColor = request.status === 'Cancelled (demo)' || answer === 'declined'
+                ? colors.destructive
+                : answer === 'confirmed' || answer === 'completed' ? '#2E9E6B' : colors.primary;
+              const statusLabel = answer === 'confirmed'
+                ? 'Accepted by provider'
+                : answer === 'completed' ? 'Completed' : answer === 'declined' ? 'Declined by provider' : request.status;
               const date = new Date(request.createdAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
               return (
                 <View
@@ -78,8 +86,8 @@ export default function RequestsScreen() {
                       {request.status !== 'Placed (demo)' ? <IconButton icon="x" accessibilityLabel="Remove request" onPress={() => confirmRemove(request)} /> : null}
                     </View>
                     <View style={styles.statusLine}>
-                      <View style={[styles.statusDot, { backgroundColor: request.status === 'Cancelled (demo)' ? colors.destructive : colors.primary }]} />
-                      <Text style={[styles.statusText, { color: request.status === 'Cancelled (demo)' ? colors.destructive : colors.primary }]}>{request.status}</Text>
+                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                      <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
                       <Text style={[styles.date, { color: colors.mutedForeground }]}>{date}</Text>
                     </View>
                     {request.serviceArea ? (
@@ -92,7 +100,12 @@ export default function RequestsScreen() {
                       <View style={styles.scheduled}>
                         <Feather name={request.providerNotified ? 'send' : 'smartphone'} size={13} color={request.providerNotified ? colors.primary : colors.mutedForeground} />
                         <Text style={[styles.scheduleText, { color: request.providerNotified ? colors.primary : colors.mutedForeground }]}>
-                          {request.providerNotified ? 'Sent to the provider' : 'Could not reach the provider'}
+                          {!request.providerNotified
+                            ? 'Could not reach the provider'
+                            : answer === 'confirmed' ? 'The provider will see you at the scheduled time'
+                              : answer === 'completed' ? 'The provider marked this as done'
+                                : answer === 'declined' ? 'Try another provider from Explore'
+                                  : 'Sent to the provider, waiting for their answer'}
                         </Text>
                       </View>
                     ) : null}
@@ -111,7 +124,7 @@ export default function RequestsScreen() {
                       ) : (
                         <ActionButton label="Sign in to check out" icon="log-in" disabled={authLoading} onPress={goToLogin} />
                       )
-                    ) : request.status === 'Placed (demo)' ? (
+                    ) : request.status === 'Placed (demo)' && answer !== 'declined' && answer !== 'completed' ? (
                       <Pressable accessibilityRole="button" onPress={() => confirmCancel(request)} style={styles.cancelLink}>
                         <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancel demo request</Text>
                       </Pressable>

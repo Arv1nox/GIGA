@@ -110,6 +110,24 @@ export async function markRemoteBookingsSeen(ids: string[]) {
   if (error) throw error;
 }
 
+/** The signed-in customer's own bookings, as id + the provider's current answer. */
+export async function fetchCustomerBookingStatuses(customerId: string): Promise<{ id: string; status: BookingStatus }[]> {
+  const { data, error } = await supabase.from('bookings').select('id,status').eq('customer_id', customerId);
+  if (error) throw error;
+  return (data ?? []) as { id: string; status: BookingStatus }[];
+}
+
+/** Calls `onChange` whenever one of this customer's bookings changes (e.g. the provider accepts it). */
+export function subscribeToCustomerBookings(customerId: string, onChange: () => void) {
+  const channel = supabase
+    .channel(`my-bookings-${customerId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `customer_id=eq.${customerId}` }, onChange)
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
 /** Lets a customer cancel their own booking. */
 export async function cancelRemoteBooking(id: string) {
   const { error } = await supabase.rpc('cancel_booking', { booking_id: id });

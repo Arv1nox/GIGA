@@ -14,10 +14,12 @@ import { useAuth } from '@/context/AuthContext';
 import { deleteRemoteService, fetchRemoteServices, insertRemoteService, updateRemoteService, uploadServiceImage } from '@/lib/remoteServices';
 import {
   cancelRemoteBooking,
+  fetchCustomerBookingStatuses,
   fetchProviderBookings,
   insertRemoteBooking,
   markRemoteBookingsSeen,
   setRemoteBookingStatus,
+  subscribeToCustomerBookings,
   subscribeToProviderBookings,
   type Booking,
   type BookingStatus,
@@ -71,6 +73,8 @@ type MarketplaceContextValue = MarketplaceState & {
   pendingBookingCount: number;
   /** Set when a booking arrives while the app is open, so a popup can announce it. */
   bookingAlert: { id: string; customerName: string; serviceTitle: string } | null;
+  /** Set when a provider answers one of the customer's bookings, so a popup can announce it. */
+  requestAlert: { id: string; status: 'confirmed' | 'completed' | 'declined'; serviceTitle: string; provider: string } | null;
   refreshBookings: () => Promise<void>;
   markBookingsSeen: () => Promise<void>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
@@ -153,6 +157,10 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingAlert, setBookingAlert] = useState<MarketplaceContextValue['bookingAlert']>(null);
   const knownBookingIds = useRef<Set<string> | null>(null);
+  const [requestAlert, setRequestAlert] = useState<MarketplaceContextValue['requestAlert']>(null);
+  // Always the latest saved data, so background checks compare against what the screen shows.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Load shared services once the saved data is in, again when someone signs in or out, and when the app comes back to the foreground.
   useEffect(() => {
@@ -222,6 +230,59 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       sub.remove();
     };
   }, [isProvider, sessionUser]);
+
+  // Customers: when a provider answers a booking, update the matching request and tell the customer.
+  useEffect(() => {
+    if (!hydrated || !sessionUser) return;
+    let active = true;
+    const check = () => {
+      fetchCustomerBookingStatuses(sessionUser)
+        .then((remote) => {
+          if (!active) return;
+          const current = stateRef.current;
+          const remoteStatus = new Map(remote.map((item) => [item.id, item.status]));
+          let announce = null as MarketplaceContextValue['requestAlert'];
+          let changed = false as boolean;
+          const requests = current.requests.map((request) => {
+            const answer = remoteStatus.get(request.id);
+            if (!request.providerNotified || !answer || answer === (request.providerStatus ?? 'new')) return request;
+            changed = true;
+            if (answer === 'confirmed' || answer === 'completed' || answer === 'declined') {
+              const service = getService(request.serviceId);
+              // Tell them about the most important change: a fresh accept or decline beats a later "completed".
+              if (!announce || answer !== 'completed') {
+                announce = { id: `${request.id}-${answer}`, status: answer, serviceTitle: service?.title ?? 'your service', provider: service?.provider ?? 'The provider' };
+              }
+            }
+            return { ...request, providerStatus: answer };
+          });
+          if (!changed) return;
+          const next = { ...current, requests };
+          stateRef.current = next;
+          setState(next);
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          if (announce) setRequestAlert(announce);
+        })
+        .catch(() => {});
+    };
+    check();
+    let stopListening = () => {};
+    try {
+      stopListening = subscribeToCustomerBookings(sessionUser, check);
+    } catch {
+      // live updates are optional; the timer below still picks up answers
+    }
+    const timer = setInterval(check, 30000);
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status === 'active') check();
+    });
+    return () => {
+      active = false;
+      stopListening();
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [hydrated, sessionUser]);
 
   const save = (next: MarketplaceState) => {
     setState(next);
@@ -343,6 +404,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     unseenBookingCount: bookings.filter((item) => !item.seen).length,
     pendingBookingCount: bookings.filter((item) => item.status === 'new').length,
     bookingAlert,
+    requestAlert,
     refreshBookings: async () => {
       if (!sessionUser) return;
       try {
@@ -446,7 +508,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       const next: MarketplaceState = {
         ...state,
         requests: state.requests.map((item) => item.id === requestId
-          ? { ...item, status: 'Placed (demo)', checkout: { ...details, total }, providerNotified }
+          ? { ...item, status: 'Placed (demo)', checkout: { ...details, total }, providerNotified, providerStatus: providerNotified ? 'new' as const : undefined }
           : item),
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -480,7 +542,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
     },
-  }), [state, hydrated, bookings, bookingAlert, sessionUser, session]);
+  }), [state, hydrated, bookings, bookingAlert, requestAlert, sessionUser, session]);
 
   return <MarketplaceContext.Provider value={value}>{children}</MarketplaceContext.Provider>;
 }

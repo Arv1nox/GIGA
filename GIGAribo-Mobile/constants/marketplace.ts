@@ -54,6 +54,8 @@ export type ServiceRequest = {
   checkout?: CheckoutDetails & { total: number };
   /** True when the provider was sent this booking (only for services added by providers in the app). */
   providerNotified?: boolean;
+  /** The provider's answer to this booking, kept in step with the shared database. Missing or 'new' means not answered yet. */
+  providerStatus?: 'new' | 'confirmed' | 'completed' | 'declined' | 'cancelled';
 };
 
 export type CheckoutDetails = {
