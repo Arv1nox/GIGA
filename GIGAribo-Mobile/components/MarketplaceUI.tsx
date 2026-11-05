@@ -354,13 +354,15 @@ export function EmptyState({
 export function FormField({
   label,
   style,
+  inputRef,
   ...props
-}: TextInputProps & { label: string; style?: StyleProp<ViewStyle> }) {
+}: TextInputProps & { label: string; style?: StyleProp<ViewStyle>; inputRef?: React.Ref<TextInput> }) {
   const colors = useColors();
   return (
     <View style={[{ gap: 7 }, style]}>
       <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <TextInput
+        ref={inputRef}
         placeholderTextColor={colors.mutedForeground}
         style={[styles.fieldInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
         {...props}

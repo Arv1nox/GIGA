@@ -8,6 +8,7 @@ import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { categories, services } from '@/constants/marketplace';
 import { Toast } from '@/components/Toast';
+import { GetStartedCard, GetStartedTour, useGetStartedTour } from '@/components/GetStartedTour';
 import { ActionButton, BrandMark, CategoryTile, IconButton, Page, SectionHeading, ServiceCard, ServiceGrid, ServiceRow, uiStyles } from '@/components/MarketplaceUI';
 
 const bannerImage = require('@/assets/images/cleaning-banner.jpg');
@@ -36,6 +37,7 @@ export default function ShopScreen() {
   const featured = services.slice(0, 4);
   // Set by the service page after "Add to requests" to show the popup here.
   const { added, t } = useLocalSearchParams<{ added?: string; t?: string }>();
+  const tour = useGetStartedTour();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
   const unreadCount = notices.filter((notice) => notice.unread).length;
@@ -77,6 +79,8 @@ export default function ShopScreen() {
           <View style={{ flex: 1 }} />
           <Feather name="sliders" size={16} color={colors.foreground} />
         </Pressable>
+
+        <GetStartedCard onPress={tour.show} />
 
         <Pressable onPress={() => router.push('/(tabs)/explore')} style={styles.banner}>
           <ImageBackground source={bannerImage} resizeMode="cover" style={StyleSheet.absoluteFill} imageStyle={styles.bannerImage} />
@@ -201,6 +205,7 @@ export default function ShopScreen() {
           </View>
         </View>
       </Modal>
+      <GetStartedTour visible={tour.open} onClose={tour.close} />
       <Toast
         trigger={added ? (t ?? added) : null}
         title="Request added"

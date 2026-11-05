@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/lib/alert';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -22,6 +22,8 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   async function createAccount() {
     const cleanName = name.trim();
@@ -122,6 +124,9 @@ export default function RegisterScreen() {
           onChangeText={setName}
           placeholder="Aldwin Dela Cruz"
           autoCapitalize="words"
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+          submitBehavior="submit"
         />
 
         <FormField
@@ -131,6 +136,10 @@ export default function RegisterScreen() {
           placeholder="you@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          inputRef={emailRef}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          submitBehavior="submit"
         />
 
         <FormField
@@ -139,6 +148,9 @@ export default function RegisterScreen() {
           onChangeText={setPassword}
           placeholder="At least 6 characters"
           secureTextEntry
+          inputRef={passwordRef}
+          returnKeyType="go"
+          onSubmitEditing={createAccount}
         />
 
         <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>

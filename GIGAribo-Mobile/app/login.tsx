@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -15,10 +15,12 @@ export default function LoginScreen() {
   const [email, setEmail] = useState(profile.email);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const hasRedirect = typeof redirect === 'string' && redirect.startsWith('/');
 
   async function signIn() {
+    if (loading) return;
     if (!email.includes('@') || password.length < 1) {
       Alert.alert('Check your details', 'Enter a valid email and password to continue.');
       return;
@@ -55,8 +57,8 @@ export default function LoginScreen() {
         <View style={styles.logo}><BrandMark /></View>
         <Text style={[styles.title, { color: colors.foreground }]}>Welcome back</Text>
         <Text style={[styles.copy, { color: colors.mutedForeground }]}>Sign in to pick up where you left off.</Text>
-        <FormField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
-        <FormField label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" secureTextEntry />
+        <FormField label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} submitBehavior="submit" />
+        <FormField label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" secureTextEntry inputRef={passwordRef} returnKeyType="go" onSubmitEditing={signIn} />
         <Pressable onPress={() => Alert.alert('Password reset', 'Password recovery is not connected yet.')} style={styles.forgot}>
           <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Forgot password?</Text>
         </Pressable>
