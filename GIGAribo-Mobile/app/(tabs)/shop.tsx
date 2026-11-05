@@ -71,6 +71,17 @@ export default function ShopScreen() {
           </HorizontalServices>
         </View>
 
+        <Pressable onPress={() => router.push('/settings/promo')} style={styles.promo}>
+          <LinearGradient colors={['#2860E8', '#38B6F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.promoGradient}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promoTag}>FIRST BOOKING TREAT</Text>
+              <Text style={styles.promoTitle}>10% off with code GIGA10</Text>
+              <Text style={styles.promoCopy}>Apply it at checkout (demo offer).</Text>
+            </View>
+            <Text style={styles.promoEmoji}>🎁</Text>
+          </LinearGradient>
+        </Pressable>
+
         <Pressable onPress={() => router.push('/(tabs)/explore')} style={[styles.partnerCard, { backgroundColor: colors.card }]}>
           <View style={[styles.partnerIcon, { backgroundColor: colors.categoryBlue }]}><Feather name="award" size={20} color={colors.primary} /></View>
           <View style={{ flex: 1 }}>
@@ -119,6 +130,12 @@ const styles = StyleSheet.create({
   bannerCopy: { fontSize: 11, marginTop: 5 },
   bannerArrow: { position: 'absolute', right: 15, bottom: 15, width: 33, height: 33, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   section: { marginBottom: 23 },
+  promo: { borderRadius: 20, overflow: 'hidden', marginBottom: 23 },
+  promoGradient: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  promoTag: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', letterSpacing: 1, opacity: 0.85 },
+  promoTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 4 },
+  promoCopy: { color: '#FFFFFF', fontSize: 11, marginTop: 4, opacity: 0.9 },
+  promoEmoji: { fontSize: 38 },
   partnerCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: 18, marginBottom: 23 },
   partnerIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   partnerTitle: { fontSize: 13, fontWeight: '800' },

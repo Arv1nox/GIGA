@@ -80,7 +80,7 @@ export default function RegisterScreen() {
         phone: '',
       });
 
-      router.replace('/location');
+      router.replace('/(tabs)/shop');
     } catch (error) {
       Alert.alert(
         'Something went wrong',

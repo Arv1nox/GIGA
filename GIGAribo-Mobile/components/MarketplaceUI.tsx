@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Image,
-  ImageBackground,
   Platform,
   Pressable,
   ScrollView,
@@ -19,11 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { formatPrice, type Category, type Service } from '@/constants/marketplace';
-
-const serviceImages = {
-  cleaning: require('@/assets/images/cleaning-banner.jpg'),
-  repair: require('@/assets/images/repair-service.jpg'),
-};
+import { ServiceArt, categoryPhotos } from '@/components/ServiceArt';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
@@ -179,9 +174,13 @@ export function CategoryTile({ category, onPress, selected = false }: { category
         { backgroundColor: tone, borderColor: selected ? colors.primary : colors.border, opacity: pressed ? 0.8 : 1 },
       ]}
     >
-      <View style={[styles.categoryIcon, { backgroundColor: colors.card }]}>
-        <Feather name={category.icon as FeatherName} size={21} color={colors.navy} />
-      </View>
+      {categoryPhotos[category.id] ? (
+        <Image source={categoryPhotos[category.id]} style={styles.categoryPhoto} resizeMode="cover" />
+      ) : (
+        <View style={[styles.categoryIcon, { backgroundColor: colors.card }]}>
+          <Feather name={category.icon as FeatherName} size={23} color={colors.navy} />
+        </View>
+      )}
       <Text numberOfLines={2} style={[styles.categoryText, { color: colors.foreground }]}>{category.title}</Text>
     </Pressable>
   );
@@ -197,11 +196,9 @@ export function ServiceImage({
   imageStyle?: StyleProp<ImageStyle>;
 }) {
   return (
-    <ImageBackground
-      source={serviceImages[service.image]}
-      resizeMode="cover"
-      style={[styles.serviceImage, style]}
-      imageStyle={imageStyle}
+    <ServiceArt
+      serviceId={service.id}
+      style={[styles.serviceImage, style, imageStyle as StyleProp<ViewStyle>]}
     />
   );
 }
@@ -224,8 +221,14 @@ export function ServiceCard({
     <View style={[styles.serviceCard, { width, backgroundColor: colors.card, borderColor: colors.border }]}>
       <View>
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-          <Image source={serviceImages[service.image]} style={styles.serviceCardImage} resizeMode="cover" />
+          <ServiceArt serviceId={service.id} style={styles.serviceCardImage} />
         </Pressable>
+        {service.rating >= 4.9 ? (
+          <View style={[styles.topBadge, { backgroundColor: colors.card }]} pointerEvents="none">
+            <Feather name="award" size={10} color="#F3A64C" />
+            <Text style={[styles.topBadgeText, { color: colors.foreground }]}>Top rated</Text>
+          </View>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
@@ -266,7 +269,7 @@ export function ServiceRow({
   return (
     <View style={[styles.serviceRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-        <Image source={serviceImages[service.image]} style={styles.serviceRowImage} resizeMode="cover" />
+        <ServiceArt serviceId={service.id} style={styles.serviceRowImage} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress} style={styles.serviceRowCopy}>
         <Text numberOfLines={1} style={[styles.serviceTitle, { color: colors.foreground }]}>{service.title}</Text>
@@ -360,12 +363,15 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
   sectionTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
   linkText: { fontSize: 12, fontWeight: '700' },
-  categoryTile: { width: 104, minHeight: 116, borderRadius: 18, padding: 11, alignItems: 'flex-start', justifyContent: 'space-between', borderWidth: 1 },
-  categoryIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  categoryTile: { width: 108, minHeight: 124, borderRadius: 20, padding: 12, alignItems: 'flex-start', justifyContent: 'space-between', borderWidth: 1 },
+  categoryIcon: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  categoryPhoto: { width: 46, height: 46, borderRadius: 16 },
   categoryText: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
   serviceImage: { minHeight: 160, justifyContent: 'flex-end' },
   serviceCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  serviceCardImage: { width: '100%', height: 112 },
+  serviceCardImage: { width: '100%', height: 118 },
+  topBadge: { position: 'absolute', left: 8, top: 8, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10 },
+  topBadgeText: { fontSize: 9, fontWeight: '800' },
   heartButton: { position: 'absolute', right: 9, top: 9, width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   serviceCardBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
   serviceTitle: { fontSize: 14, fontWeight: '700' },
@@ -375,7 +381,7 @@ const styles = StyleSheet.create({
   rating: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   ratingText: { fontSize: 11, fontWeight: '600' },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 11, borderRadius: 18, borderWidth: 1 },
-  serviceRowImage: { width: 78, height: 78, borderRadius: 13 },
+  serviceRowImage: { width: 78, height: 78, borderRadius: 14 },
   serviceRowCopy: { flex: 1, minWidth: 0 },
   emptyState: { alignItems: 'center', paddingHorizontal: 30, paddingVertical: 44, gap: 10 },
   emptyIcon: { width: 66, height: 66, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

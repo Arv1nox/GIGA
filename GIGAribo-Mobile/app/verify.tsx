@@ -16,7 +16,7 @@ export default function VerifyScreen() {
       Alert.alert('Enter the 4-digit code', 'For this preview, any four digits will continue.');
       return;
     }
-    router.replace('/location');
+    router.replace('/(tabs)/shop');
   }
 
   return (

@@ -40,7 +40,7 @@ export default function LoginScreen() {
     if (hasRedirect && router.canGoBack()) {
       router.back(); // return to the screen that sent them here
     } else {
-      router.replace((hasRedirect ? redirect : '/location') as Href);
+      router.replace((hasRedirect ? redirect : '/(tabs)/shop') as Href);
     }
   }
 

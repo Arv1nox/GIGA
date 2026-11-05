@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
-import { ActionButton, IconButton, Page } from '@/components/MarketplaceUI';
+import { ActionButton, FormField, IconButton, Page } from '@/components/MarketplaceUI';
 import { useMarketplace } from '@/context/MarketplaceContext';
 
 const suggestions = [
@@ -18,6 +18,7 @@ export default function LocationScreen() {
   const colors = useColors();
   const { location, setLocation } = useMarketplace();
   const [selected, setSelected] = useState(location);
+  const [custom, setCustom] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function useCurrentLocation() {
@@ -60,7 +61,7 @@ export default function LocationScreen() {
         const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
         address = [place?.district || place?.subregion, place?.city, place?.region].filter(Boolean).join(', ') || address;
       }
-      if (address) setSelected(address);
+      if (address) { setSelected(address); setCustom(''); }
       else Alert.alert('Location found', 'Choose the matching service area from the list below.');
     } catch {
       Alert.alert("Couldn't get your location", 'You can still choose your neighborhood from the list.');
@@ -69,14 +70,31 @@ export default function LocationScreen() {
     }
   }
 
+  function onCustomChange(text: string) {
+    setCustom(text);
+    // Typing an address makes it the selected one; clearing it falls back to the saved location.
+    setSelected(text.trim() ? text : location);
+  }
+
+  function pickSuggestion(address: string) {
+    setCustom('');
+    setSelected(address);
+  }
+
   function saveLocation() {
-    setLocation(selected);
-    router.replace('/(tabs)/shop');
+    const finalLocation = (custom.trim() || selected).trim();
+    if (!finalLocation) {
+      Alert.alert('Enter a location', 'Type your address or choose one from the list.');
+      return;
+    }
+    setLocation(finalLocation);
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/shop');
   }
 
   return (
     <Page>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <IconButton icon="chevron-left" accessibilityLabel="Back" onPress={() => router.back()} />
         <View style={[styles.mapCard, { backgroundColor: colors.accent }]}>
           <View style={[styles.mapStrip, { backgroundColor: colors.categoryGreen }]} />
@@ -100,12 +118,21 @@ export default function LocationScreen() {
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </Pressable>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>OR TYPE YOUR ADDRESS</Text>
+        <FormField
+          label="Your address"
+          value={custom}
+          onChangeText={onCustomChange}
+          placeholder="Street, barangay, city"
+          autoCapitalize="words"
+          accessibilityLabel="Type your address"
+        />
         <Text style={[styles.label, { color: colors.mutedForeground }]}>POPULAR NEARBY</Text>
         <View style={[styles.list, { borderColor: colors.border, backgroundColor: colors.card }]}>
           {suggestions.map((address, index) => (
             <Pressable
               key={address}
-              onPress={() => setSelected(address)}
+              onPress={() => pickSuggestion(address)}
               style={[styles.address, index < suggestions.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
             >
               <Feather name="map-pin" size={16} color={selected === address ? colors.primary : colors.mutedForeground} />

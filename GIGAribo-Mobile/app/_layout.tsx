@@ -16,6 +16,7 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { AuthProvider } from '@/context/AuthContext';
 import { MarketplaceProvider } from '@/context/MarketplaceContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -89,10 +90,12 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView>
             <KeyboardProvider>
-              <MarketplaceProvider>
-                <StatusBar style="dark" />
-                <RootLayoutNav />
-              </MarketplaceProvider>
+              <AuthProvider>
+                <MarketplaceProvider>
+                  <StatusBar style="dark" />
+                  <RootLayoutNav />
+                </MarketplaceProvider>
+              </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
