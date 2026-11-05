@@ -16,6 +16,10 @@ export const serviceFocus: Record<string, Focus> = {
   'deep-clean': { x: 0.5, y: 0.55 },
   landscaping: { x: 0.45, y: 0.5 },
   electrical: { x: 0.5, y: 0.45 },
+  'doctor-consult': { x: 0.7, y: 0.4 },
+  'health-checkup': { x: 0.5, y: 0.4 },
+  'party-catering': { x: 0.5, y: 0.5 },
+  'snack-trays': { x: 0.5, y: 0.5 },
 };
 
 /** Same idea for the category tiles (they reuse some of the service photos). */
@@ -24,6 +28,8 @@ export const categoryFocus: Record<string, Focus> = {
   plumbing: serviceFocus['pipe-repair'],
   cleaning: serviceFocus['house-cleaning'],
   landscaping: serviceFocus.landscaping,
+  health: { x: 0.7, y: 0.4 },
+  catering: { x: 0.5, y: 0.5 },
 };
 
 // All the service photos are 3:2 (landscape).

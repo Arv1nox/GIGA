@@ -280,6 +280,39 @@ export const servicePhotos: Record<string, ImageSourcePropType> = {
   'deep-clean': require('@/assets/images/services/deep-clean.jpg'),
   landscaping: require('@/assets/images/services/landscaping.jpg'),
   electrical: require('@/assets/images/services/electrical.jpg'),
+  'doctor-consult': require('@/assets/images/services/doctor-visit.jpg'),
+  'health-checkup': require('@/assets/images/services/health-checkup.jpg'),
+  'party-catering': require('@/assets/images/services/catering.jpg'),
+  'snack-trays': require('@/assets/images/services/snack-trays.jpg'),
+};
+
+/**
+ * Extra photos for the swipeable gallery on a service's page (the cover photo above is always the first slide).
+ * The dots under the picture appear automatically once a service has more than one photo.
+ * To add some: save the images in assets/images/services/ and add a line below, for example:
+ *   roofing: [require('@/assets/images/services/roofing-2.jpg'), require('@/assets/images/services/roofing-3.jpg')],
+ */
+export const serviceGallery: Record<string, ImageSourcePropType[]> = {
+  roofing: [
+    require('@/assets/images/services/roofing-2.jpg'),
+    require('@/assets/images/services/roofing-3.jpg'),
+  ],
+  'pipe-repair': [
+    require('@/assets/images/services/pipe-repair-2.jpg'),
+    require('@/assets/images/services/pipe-repair-3.jpg'),
+  ],
+  'house-cleaning': [
+    require('@/assets/images/services/house-cleaning-2.jpg'),
+    require('@/assets/images/services/house-cleaning-3.jpg'),
+  ],
+  'bathroom-cleaning': [
+    require('@/assets/images/services/bathroom-cleaning-2.jpg'),
+    require('@/assets/images/services/bathroom-cleaning-3.jpg'),
+  ],
+  'deep-clean': [
+    require('@/assets/images/services/deep-clean-2.jpg'),
+    require('@/assets/images/services/deep-clean-3.jpg'),
+  ],
 };
 
 /** Photos for the category tiles on the home page. Categories not listed here show their icon. */
@@ -288,6 +321,8 @@ export const categoryPhotos: Record<string, ImageSourcePropType> = {
   plumbing: servicePhotos['pipe-repair'],
   cleaning: servicePhotos['house-cleaning'],
   landscaping: servicePhotos.landscaping,
+  health: require('@/assets/images/services/doctor-visit.jpg'),
+  catering: require('@/assets/images/services/catering.jpg'),
 };
 
 /** Photo (or illustration) for a service, chosen by its id. Fills whatever size its container is given. */

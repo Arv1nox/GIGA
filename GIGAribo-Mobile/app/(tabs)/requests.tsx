@@ -82,6 +82,12 @@ export default function RequestsScreen() {
                       <Text style={[styles.statusText, { color: request.status === 'Cancelled (demo)' ? colors.destructive : colors.primary }]}>{request.status}</Text>
                       <Text style={[styles.date, { color: colors.mutedForeground }]}>{date}</Text>
                     </View>
+                    {request.serviceArea ? (
+                      <View style={styles.scheduled}>
+                        <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                        <Text numberOfLines={1} style={[styles.scheduleText, { color: colors.mutedForeground }]}>{request.serviceArea}</Text>
+                      </View>
+                    ) : null}
                     {request.checkout ? (
                       <View style={styles.scheduled}>
                         <Feather name="calendar" size={13} color={colors.mutedForeground} />

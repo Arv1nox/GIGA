@@ -121,6 +121,14 @@ export function RequestCheckout({ request, service, mode, onClose, onBackHome, o
                 <Text style={[styles.summaryPrice, { color: colors.foreground }]}>{formatCheckoutPrice(service.price)}</Text>
               </View>
 
+              {request.serviceArea ? (
+                <View style={[styles.optionRow, { borderBottomColor: colors.border }]}>
+                  <View style={[styles.rowIcon, { backgroundColor: colors.categoryGreen }]}><Feather name="map-pin" size={17} color={colors.primary} /></View>
+                  <Text style={[styles.rowLabel, { color: colors.foreground }]}>Location</Text>
+                  <Text numberOfLines={1} style={[styles.rowValue, { color: colors.foreground }]}>{request.serviceArea}</Text>
+                </View>
+              ) : null}
+
               <Pressable accessibilityRole="button" onPress={() => setSection(section === 'schedule' ? null : 'schedule')} style={[styles.optionRow, { borderBottomColor: colors.border }]}>
                 <View style={[styles.rowIcon, { backgroundColor: colors.categoryBlue }]}><Feather name="calendar" size={17} color={colors.primary} /></View>
                 <Text style={[styles.rowLabel, { color: colors.foreground }]}>Time</Text>
@@ -203,7 +211,7 @@ export function RequestCheckout({ request, service, mode, onClose, onBackHome, o
             <Text style={[styles.resultMessage, { color: colors.mutedForeground }]}>Saved on this device for preview. No provider has accepted it and no payment was taken.</Text>
             <View style={[styles.resultSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="calendar" size={17} color={colors.primary} />
-              <Text style={[styles.resultSummaryText, { color: colors.foreground }]}>{service.title} · {resultDate} at {request.checkout?.timeSlot ?? time}{'\n'}{formatCheckoutPrice(request.checkout?.total ?? total)} · {request.checkout?.paymentMethod ?? payment}</Text>
+              <Text style={[styles.resultSummaryText, { color: colors.foreground }]}>{service.title}{request.serviceArea ? ` · ${request.serviceArea}` : ''}{'\n'}{resultDate} at {request.checkout?.timeSlot ?? time}{'\n'}{formatCheckoutPrice(request.checkout?.total ?? total)} · {request.checkout?.paymentMethod ?? payment}</Text>
             </View>
           </View>
           <View style={styles.resultActions}>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,8 @@ import { useColors } from '@/hooks/useColors';
 import { getService, formatPrice } from '@/constants/marketplace';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { ActionButton, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
+import { FocusedPhoto, serviceFocus } from '@/components/FocusedPhoto';
+import { serviceGallery, servicePhotos } from '@/components/ServiceArt';
 
 export default function ServiceDetailsScreen() {
   const colors = useColors();
@@ -15,6 +17,11 @@ export default function ServiceDetailsScreen() {
   const insets = useSafeAreaInsets();
   const service = getService(id);
   const { favorites, toggleFavorite, addRequest } = useMarketplace();
+  const [showAreas, setShowAreas] = useState(false);
+  const [pickedArea, setPickedArea] = useState<string | null>(null);
+  const [heroWidth, setHeroWidth] = useState(0);
+  const [slide, setSlide] = useState(0);
+  const pagerRef = useRef<ScrollView>(null);
 
   // Fall back to the home tab when there is nothing to go back to (e.g. page reloaded on web).
   const goBack = () => {
@@ -34,16 +41,52 @@ export default function ServiceDetailsScreen() {
   }
 
   const favorite = favorites.includes(service.id);
+  // Cover photo first, then any extra gallery photos. Fewer than two photos means no swiping and no dots.
+  const extraPhotos = serviceGallery[service.id] ?? [];
+  const slides = extraPhotos.length > 0 && servicePhotos[service.id] ? [servicePhotos[service.id], ...extraPhotos] : [];
+  const hasGallery = slides.length > 1;
+  const onSlideScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (heroWidth > 0) setSlide(Math.round(event.nativeEvent.contentOffset.x / heroWidth));
+  };
+  const goToSlide = (index: number) => {
+    setSlide(index);
+    pagerRef.current?.scrollTo({ x: index * heroWidth, animated: true });
+  };
+  // The listing location the customer tapped (none until they choose one).
+  const selectedArea = pickedArea;
   return (
     <Page>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[uiStyles.scrollContent, { paddingHorizontal: 0, paddingBottom: 20 }]}>
-        <View style={styles.hero}>
-          <ServiceImage service={service} style={styles.photo} />
+        <View style={styles.hero} onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)}>
+          {hasGallery && heroWidth > 0 ? (
+            <ScrollView
+              ref={pagerRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={onSlideScroll}
+            >
+              {slides.map((photo, index) => (
+                <FocusedPhoto key={index} source={photo} focus={index === 0 ? serviceFocus[service.id] : undefined} style={{ width: heroWidth, height: 270 }} />
+              ))}
+            </ScrollView>
+          ) : (
+            <ServiceImage service={service} style={styles.photo} />
+          )}
           <View style={styles.heroTop}>
             <IconButton filled icon="chevron-left" accessibilityLabel="Back" onPress={goBack} />
             <IconButton filled icon="heart" color={favorite ? colors.destructive : colors.navy} accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'} onPress={() => toggleFavorite(service.id)} />
           </View>
-          <View style={[styles.imageCount, { backgroundColor: colors.card }]}><View style={[styles.dot, { backgroundColor: colors.primary }]} /><View style={[styles.dot, { backgroundColor: colors.border }]} /><View style={[styles.dot, { backgroundColor: colors.border }]} /></View>
+          {hasGallery ? (
+            <View style={[styles.imageCount, { backgroundColor: colors.card }]}>
+              {slides.map((_, index) => (
+                <Pressable key={index} onPress={() => goToSlide(index)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Show photo ${index + 1} of ${slides.length}`}>
+                  <View style={[styles.dot, { backgroundColor: index === slide ? colors.primary : colors.border }]} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.details}>
@@ -71,10 +114,50 @@ export default function ServiceDetailsScreen() {
               {service.subtitle}. Tell the provider what your home needs and they'll help you plan the next step. The displayed price is a starting estimate.
             </Text>
           </View>
-          <View style={[styles.detailRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-            <Feather name="map-pin" size={16} color={colors.primary} />
-            <Text style={[styles.detailText, { color: colors.foreground }]}>Available near Naga City</Text>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          <View style={[styles.areaBlock, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+            <Pressable
+              onPress={() => setShowAreas((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showAreas }}
+              accessibilityLabel={`Available near ${service.area}. ${showAreas ? 'Hide' : 'Show'} service areas`}
+              style={({ pressed }) => [styles.areaHeader, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Feather name="map-pin" size={16} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.detailText, { color: colors.foreground }]}>Available near {service.area}</Text>
+                {selectedArea ? (
+                  <Text style={[styles.providerMeta, { color: colors.primary, fontWeight: '700' }]} numberOfLines={1}>Selected location: {selectedArea}</Text>
+                ) : (
+                  <Text style={[styles.providerMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    Tap to choose a location · {service.serviceAreas.length} available
+                  </Text>
+                )}
+              </View>
+              <Feather name={showAreas ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
+            </Pressable>
+            {showAreas ? (
+              <View style={styles.areaBody}>
+                <Text style={[styles.providerMeta, { color: colors.mutedForeground, marginTop: 0 }]}>AVAILABLE LOCATIONS · CHOOSE ONE</Text>
+                <View style={styles.areaChips}>
+                  {service.serviceAreas.map((area) => {
+                    const selected = selectedArea === area;
+                    return (
+                      <Pressable
+                        key={area}
+                        onPress={() => setPickedArea(area)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Choose the ${area} location`}
+                        style={[styles.areaChip, { backgroundColor: selected ? colors.primary : colors.accent, borderColor: selected ? colors.primary : colors.border }]}
+                      >
+                        {selected ? <Feather name="check" size={12} color={colors.primaryForeground} /> : null}
+                        <Text style={{ color: selected ? colors.primaryForeground : colors.foreground, fontSize: 11, fontWeight: selected ? '700' : '600' }}>{area}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
           </View>
           <View style={styles.reviewRow}>
             <View>
@@ -96,7 +179,13 @@ export default function ServiceDetailsScreen() {
       <View style={[styles.sticky, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
         <View><Text style={[styles.from, { color: colors.mutedForeground }]}>STARTING FROM</Text><Text style={[styles.stickyPrice, { color: colors.foreground }]}>{formatPrice(service.price)}</Text></View>
         <ActionButton label="Add to requests" onPress={() => {
-          void addRequest(service.id)
+          if (!selectedArea) {
+            // Ask for a location first: open the list so they can tap one.
+            setShowAreas(true);
+            Alert.alert('Choose a location', `Pick a location for ${service.title} from the list.`);
+            return;
+          }
+          void addRequest(service.id, selectedArea)
             // Go back to the home page; it shows a "Request added" popup.
             .then(() => router.dismissTo({ pathname: '/(tabs)/shop', params: { added: service.title, t: String(Date.now()) } }))
             .catch(() => Alert.alert('Could not save request', 'Please try again. Nothing was added to Requests.'));
@@ -127,6 +216,11 @@ const styles = StyleSheet.create({
   section: { gap: 7 },
   sectionTitle: { fontSize: 16, fontWeight: '800' },
   description: { fontSize: 12, lineHeight: 19 },
+  areaBlock: { borderTopWidth: 1, borderBottomWidth: 1 },
+  areaHeader: { minHeight: 49, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  areaBody: { gap: 10, paddingBottom: 14 },
+  areaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  areaChip: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 5 },
   detailRow: { minHeight: 49, borderTopWidth: 1, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
   detailText: { flex: 1, fontSize: 12, fontWeight: '600' },
   reviewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

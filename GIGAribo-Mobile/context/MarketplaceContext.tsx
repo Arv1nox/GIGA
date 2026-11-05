@@ -15,7 +15,7 @@ type MarketplaceContextValue = MarketplaceState & {
   hydrated: boolean;
   setLocation: (location: string) => void;
   toggleFavorite: (serviceId: string) => void;
-  addRequest: (serviceId: string) => Promise<void>;
+  addRequest: (serviceId: string, serviceArea?: string) => Promise<void>;
   removeRequest: (requestId: string) => Promise<void>;
   checkoutRequest: (requestId: string, details: CheckoutDetails) => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
@@ -85,11 +85,12 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         : [...state.favorites, serviceId];
       save({ ...state, favorites });
     },
-    addRequest: async (serviceId) => {
+    addRequest: async (serviceId, serviceArea) => {
       if (!getService(serviceId)) throw new Error('Service not found.');
       const request: ServiceRequest = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         serviceId,
+        serviceArea,
         createdAt: new Date().toISOString(),
         status: 'Pending checkout',
       };
