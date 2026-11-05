@@ -54,7 +54,7 @@ function DetailsForm({ email }: { email: string }) {
     setDetailsStatus(null);
     const trimmed = name.trim();
     if (trimmed.length < 2) {
-      setDetailsStatus({ kind: 'error', message: 'Enter your full name.' });
+      setDetailsStatus({ kind: 'error', message: 'Enter your name.' });
       return;
     }
     const digits = phone.replace(/\D/g, '').slice(-10);
@@ -103,7 +103,7 @@ function DetailsForm({ email }: { email: string }) {
   return (
     <SettingsPage title="My details">
       <SectionCard>
-        <FormField label="Full name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
+        <FormField label="Name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
         <FormField
           label="Mobile number (+63)"
           value={phone}

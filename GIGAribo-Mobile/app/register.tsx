@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '@/lib/alert';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import {

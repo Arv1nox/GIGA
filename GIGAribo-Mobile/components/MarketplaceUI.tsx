@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -32,27 +33,33 @@ function ServicePhoto({ serviceId, style }: { serviceId: string; style?: StylePr
 export function Page({ children, tabbed = false, style }: { children: React.ReactNode; tabbed?: boolean; style?: StyleProp<ViewStyle> }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  return (
+  const isWeb = Platform.OS === 'web';
+  const column = (
     <View
       style={[
-        { flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? 67 : insets.top, paddingBottom: Platform.OS === 'web' && !tabbed ? 34 : 0 },
+        { flex: 1, backgroundColor: colors.background, paddingTop: isWeb ? 67 : insets.top, paddingBottom: isWeb && !tabbed ? 34 : 0 },
         // On wide web screens keep the content in a centered, phone-like column.
-        Platform.OS === 'web' ? { width: '100%', maxWidth: 560, alignSelf: 'center' } : null,
+        isWeb ? { width: '100%', maxWidth: 560, alignSelf: 'center' } : null,
         style,
       ]}
     >
       {children}
     </View>
   );
+  // On web, paint the full width with the app background so the sides of the column match the theme.
+  if (isWeb) return <View style={{ flex: 1, width: '100%', backgroundColor: colors.background }}>{column}</View>;
+  return column;
 }
+
+// Small square logo used next to the app name. Replace assets/images/logo-icon.png with your own.
+const brandLogo = require('@/assets/images/logo-icon.png');
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   const colors = useColors();
+  const size = compact ? 34 : 40;
   return (
     <View style={styles.brand}>
-      <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
-        <Feather name="home" size={compact ? 17 : 20} color={colors.primary} />
-      </View>
+      <Image source={brandLogo} style={{ width: size, height: size, borderRadius: 12 }} resizeMode="contain" />
       <Text style={[styles.brandName, { color: colors.foreground, fontSize: compact ? 17 : 20 }]}>
         GIGA<Text style={{ color: colors.primary }}>ribo</Text>
       </Text>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ActionButton, BrandMark, FormField, IconButton, Page } from '@/components/MarketplaceUI';
@@ -34,7 +35,10 @@ export default function LoginScreen() {
     }
     updateProfile({
       ...profile,
-      name: profile.name === 'Guest' ? email.split('@')[0] : profile.name,
+      // Use the full name entered at sign-up (saved in Supabase), falling back to the email prefix.
+      name: profile.name === 'Guest'
+        ? String(data.user?.user_metadata?.name ?? '').trim() || email.split('@')[0]
+        : profile.name,
       email: data.user?.email ?? email.trim(),
     });
     if (hasRedirect && router.canGoBack()) {

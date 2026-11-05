@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -96,10 +97,8 @@ export default function ServiceDetailsScreen() {
         <View><Text style={[styles.from, { color: colors.mutedForeground }]}>STARTING FROM</Text><Text style={[styles.stickyPrice, { color: colors.foreground }]}>{formatPrice(service.price)}</Text></View>
         <ActionButton label="Add to requests" onPress={() => {
           void addRequest(service.id)
-            .then(() => Alert.alert('Ready for checkout', 'Choose a date and review the total in Requests. No provider has been contacted.', [
-              { text: 'View requests', onPress: () => router.push('/(tabs)/requests') },
-              { text: 'Keep browsing', style: 'cancel' },
-            ]))
+            // Go back to the home page; it shows a "Request added" popup.
+            .then(() => router.dismissTo({ pathname: '/(tabs)/shop', params: { added: service.title, t: String(Date.now()) } }))
             .catch(() => Alert.alert('Could not save request', 'Please try again. Nothing was added to Requests.'));
         }} style={{ flex: 1 }} />
       </View>

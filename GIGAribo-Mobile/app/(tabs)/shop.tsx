@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, type Href } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { categories, services } from '@/constants/marketplace';
+import { Toast } from '@/components/Toast';
 import { ActionButton, BrandMark, CategoryTile, IconButton, Page, SectionHeading, ServiceCard, ServiceGrid, ServiceRow, uiStyles } from '@/components/MarketplaceUI';
 
 const bannerImage = require('@/assets/images/cleaning-banner.jpg');
@@ -33,6 +34,8 @@ export default function ShopScreen() {
   const { location, favorites, toggleFavorite } = useMarketplace();
   const insets = useSafeAreaInsets();
   const featured = services.slice(0, 4);
+  // Set by the service page after "Add to requests" to show the popup here.
+  const { added, t } = useLocalSearchParams<{ added?: string; t?: string }>();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
   const unreadCount = notices.filter((notice) => notice.unread).length;
@@ -198,6 +201,12 @@ export default function ShopScreen() {
           </View>
         </View>
       </Modal>
+      <Toast
+        trigger={added ? (t ?? added) : null}
+        title="Request added"
+        detail={added}
+        onPress={() => router.push('/(tabs)/requests')}
+      />
     </Page>
   );
 }

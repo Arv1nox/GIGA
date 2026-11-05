@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '@/lib/alert';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';

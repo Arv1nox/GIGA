@@ -29,7 +29,8 @@ function RootLayoutNav() {
   const colors = useColors();
   return (
     <Stack screenOptions={{ headerShown: false, headerBackTitle: 'Back', contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Screen name="index" />
+      <Stack.Screen name="index" options={{ animation: 'fade', contentStyle: { backgroundColor: '#020B1F' } }} />
+      <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
       <Stack.Screen name="signin" />
       <Stack.Screen name="verify" />
       <Stack.Screen name="register" />

@@ -26,7 +26,9 @@ export default function AccountScreen() {
   const [signOutError, setSignOutError] = useState('');
 
   const signedIn = Boolean(session);
-  const displayName = signedIn ? profile.name : 'Guest';
+  // Prefer the saved profile name; otherwise use the full name entered at sign-up.
+  const signupName = String(session?.user.user_metadata?.name ?? '').trim();
+  const displayName = signedIn ? (profile.name && profile.name !== 'Guest' ? profile.name : signupName || profile.name) : 'Guest';
   const displayLine = signedIn
     ? profile.email || session?.user.email || profile.phone
     : 'Browsing as a guest';
@@ -42,7 +44,7 @@ export default function AccountScreen() {
     try {
       await signOut();
       setSignOutVisible(false);
-      router.replace('/');
+      router.replace('/welcome');
     } catch {
       setSignOutError('Could not sign out right now. Please try again.');
     } finally {
