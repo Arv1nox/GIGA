@@ -74,7 +74,8 @@ function DetailsForm({ email }: { email: string }) {
       return;
     }
     updateProfile({ ...profile, name: trimmed, phone: formattedPhone });
-    setDetailsStatus({ kind: 'success', message: 'Your details were saved.' });
+    // Saved: go back to the Account page.
+    router.dismissTo('/(tabs)/account');
   }
 
   async function changePassword() {

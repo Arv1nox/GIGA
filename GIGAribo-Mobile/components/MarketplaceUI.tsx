@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -18,9 +17,17 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { formatPrice, type Category, type Service } from '@/constants/marketplace';
-import { ServiceArt, categoryPhotos } from '@/components/ServiceArt';
+import { ServiceArt, categoryPhotos, servicePhotos } from '@/components/ServiceArt';
+import { FocusedPhoto, categoryFocus, serviceFocus } from '@/components/FocusedPhoto';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
+
+/** A service's photo, cropped so the subject stays centered (falls back to the illustration). */
+function ServicePhoto({ serviceId, style }: { serviceId: string; style?: StyleProp<ViewStyle> }) {
+  const photo = servicePhotos[serviceId];
+  if (photo) return <FocusedPhoto source={photo} focus={serviceFocus[serviceId]} style={style} />;
+  return <ServiceArt serviceId={serviceId} style={style} />;
+}
 
 export function Page({ children, tabbed = false, style }: { children: React.ReactNode; tabbed?: boolean; style?: StyleProp<ViewStyle> }) {
   const colors = useColors();
@@ -29,6 +36,8 @@ export function Page({ children, tabbed = false, style }: { children: React.Reac
     <View
       style={[
         { flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? 67 : insets.top, paddingBottom: Platform.OS === 'web' && !tabbed ? 34 : 0 },
+        // On wide web screens keep the content in a centered, phone-like column.
+        Platform.OS === 'web' ? { width: '100%', maxWidth: 560, alignSelf: 'center' } : null,
         style,
       ]}
     >
@@ -98,12 +107,15 @@ export function IconButton({
   color,
   accessibilityLabel,
   size = 20,
+  filled = false,
 }: {
   icon: FeatherName;
   onPress: () => void;
   color?: string;
   accessibilityLabel: string;
   size?: number;
+  /** Draws a white circle behind the icon so it stays visible on top of photos. */
+  filled?: boolean;
 }) {
   const colors = useColors();
   return (
@@ -112,7 +124,11 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [
+        styles.iconButton,
+        filled ? [styles.iconButtonFilled, { backgroundColor: colors.card }] : null,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
     >
       <Feather name={icon} size={size} color={color ?? colors.foreground} />
     </Pressable>
@@ -162,7 +178,17 @@ export function SectionHeading({ title, action, onAction }: { title: string; act
   );
 }
 
-export function CategoryTile({ category, onPress, selected = false }: { category: Category; onPress: () => void; selected?: boolean }) {
+export function CategoryTile({
+  category,
+  onPress,
+  selected = false,
+  width = 108,
+}: {
+  category: Category;
+  onPress: () => void;
+  selected?: boolean;
+  width?: ViewStyle['width'];
+}) {
   const colors = useColors();
   const tone = colors[category.tone];
   return (
@@ -171,14 +197,14 @@ export function CategoryTile({ category, onPress, selected = false }: { category
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.categoryTile,
-        { backgroundColor: tone, borderColor: selected ? colors.primary : colors.border, opacity: pressed ? 0.8 : 1 },
+        { width, backgroundColor: tone, borderColor: selected ? colors.primary : colors.border, borderWidth: selected ? 2 : 1, opacity: pressed ? 0.8 : 1 },
       ]}
     >
       {categoryPhotos[category.id] ? (
-        <Image source={categoryPhotos[category.id]} style={styles.categoryPhoto} resizeMode="cover" />
+        <FocusedPhoto source={categoryPhotos[category.id]} focus={categoryFocus[category.id]} style={styles.categoryPhoto} />
       ) : (
         <View style={[styles.categoryIcon, { backgroundColor: colors.card }]}>
-          <Feather name={category.icon as FeatherName} size={23} color={colors.navy} />
+          <Feather name={category.icon as FeatherName} size={25} color={colors.navy} />
         </View>
       )}
       <Text numberOfLines={2} style={[styles.categoryText, { color: colors.foreground }]}>{category.title}</Text>
@@ -196,7 +222,7 @@ export function ServiceImage({
   imageStyle?: StyleProp<ImageStyle>;
 }) {
   return (
-    <ServiceArt
+    <ServicePhoto
       serviceId={service.id}
       style={[styles.serviceImage, style, imageStyle as StyleProp<ViewStyle>]}
     />
@@ -221,7 +247,7 @@ export function ServiceCard({
     <View style={[styles.serviceCard, { width, backgroundColor: colors.card, borderColor: colors.border }]}>
       <View>
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-          <ServiceArt serviceId={service.id} style={styles.serviceCardImage} />
+          <ServicePhoto serviceId={service.id} style={styles.serviceCardImage} />
         </Pressable>
         {service.rating >= 4.9 ? (
           <View style={[styles.topBadge, { backgroundColor: colors.card }]} pointerEvents="none">
@@ -269,7 +295,7 @@ export function ServiceRow({
   return (
     <View style={[styles.serviceRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-        <ServiceArt serviceId={service.id} style={styles.serviceRowImage} />
+        <ServicePhoto serviceId={service.id} style={styles.serviceRowImage} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress} style={styles.serviceRowCopy}>
         <Text numberOfLines={1} style={[styles.serviceTitle, { color: colors.foreground }]}>{service.title}</Text>
@@ -336,6 +362,10 @@ export function FormField({
   );
 }
 
+export function ServiceGrid({ children }: { children: React.ReactNode }) {
+  return <View style={styles.serviceGrid}>{children}</View>;
+}
+
 export function HorizontalServices({ children }: { children: React.ReactNode }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 22 }}>
@@ -358,18 +388,38 @@ const styles = StyleSheet.create({
   buttonSecondary: { borderWidth: 1 },
   buttonText: { fontSize: 15, fontWeight: '700' },
   iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  iconButtonFilled: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    shadowColor: '#0E1838',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
   searchField: { minHeight: 48, borderRadius: 15, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 10 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
   sectionTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
   linkText: { fontSize: 12, fontWeight: '700' },
-  categoryTile: { width: 108, minHeight: 124, borderRadius: 20, padding: 12, alignItems: 'flex-start', justifyContent: 'space-between', borderWidth: 1 },
-  categoryIcon: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  categoryPhoto: { width: 46, height: 46, borderRadius: 16 },
-  categoryText: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  categoryTile: { minHeight: 118, borderRadius: 20, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1 },
+  categoryIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  categoryPhoto: { width: 56, height: 56, borderRadius: 18 },
+  categoryText: { fontSize: 12, fontWeight: '700', lineHeight: 16, textAlign: 'center' },
   serviceImage: { minHeight: 160, justifyContent: 'flex-end' },
-  serviceCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  serviceCardImage: { width: '100%', height: 118 },
+  serviceGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14 },
+  serviceCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#162B63',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  serviceCardImage: { width: '100%', aspectRatio: 4 / 3 },
   topBadge: { position: 'absolute', left: 8, top: 8, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10 },
   topBadgeText: { fontSize: 9, fontWeight: '800' },
   heartButton: { position: 'absolute', right: 9, top: 9, width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -380,8 +430,20 @@ const styles = StyleSheet.create({
   servicePrice: { fontSize: 13, fontWeight: '800' },
   rating: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   ratingText: { fontSize: 11, fontWeight: '600' },
-  serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 11, borderRadius: 18, borderWidth: 1 },
-  serviceRowImage: { width: 78, height: 78, borderRadius: 14 },
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 11,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: '#162B63',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  serviceRowImage: { width: 84, height: 84, borderRadius: 16 },
   serviceRowCopy: { flex: 1, minWidth: 0 },
   emptyState: { alignItems: 'center', paddingHorizontal: 30, paddingVertical: 44, gap: 10 },
   emptyIcon: { width: 66, height: 66, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

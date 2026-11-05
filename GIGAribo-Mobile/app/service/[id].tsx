@@ -15,11 +15,17 @@ export default function ServiceDetailsScreen() {
   const service = getService(id);
   const { favorites, toggleFavorite, addRequest } = useMarketplace();
 
+  // Fall back to the home tab when there is nothing to go back to (e.g. page reloaded on web).
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/shop');
+  };
+
   if (!service) {
     return (
       <Page>
         <View style={styles.missing}>
-          <IconButton icon="chevron-left" accessibilityLabel="Back" onPress={() => router.back()} />
+          <IconButton icon="chevron-left" accessibilityLabel="Back" onPress={goBack} />
           <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: '800' }}>Service not found</Text>
         </View>
       </Page>
@@ -33,8 +39,8 @@ export default function ServiceDetailsScreen() {
         <View style={styles.hero}>
           <ServiceImage service={service} style={styles.photo} />
           <View style={styles.heroTop}>
-            <IconButton icon="chevron-left" accessibilityLabel="Back" onPress={() => router.back()} />
-            <IconButton icon={favorite ? 'heart' : 'heart'} color={favorite ? colors.destructive : colors.navy} accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'} onPress={() => toggleFavorite(service.id)} />
+            <IconButton filled icon="chevron-left" accessibilityLabel="Back" onPress={goBack} />
+            <IconButton filled icon="heart" color={favorite ? colors.destructive : colors.navy} accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'} onPress={() => toggleFavorite(service.id)} />
           </View>
           <View style={[styles.imageCount, { backgroundColor: colors.card }]}><View style={[styles.dot, { backgroundColor: colors.primary }]} /><View style={[styles.dot, { backgroundColor: colors.border }]} /><View style={[styles.dot, { backgroundColor: colors.border }]} /></View>
         </View>
@@ -102,9 +108,9 @@ export default function ServiceDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 270, position: 'relative' },
+  hero: { height: 270, position: 'relative', overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   photo: { height: 270 },
-  heroTop: { position: 'absolute', top: 7, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between' },
+  heroTop: { position: 'absolute', top: 12, left: 16, right: 16, zIndex: 10, flexDirection: 'row', justifyContent: 'space-between' },
   imageCount: { position: 'absolute', bottom: 13, alignSelf: 'center', borderRadius: 20, flexDirection: 'row', gap: 5, paddingHorizontal: 10, paddingVertical: 7 },
   dot: { width: 5, height: 5, borderRadius: 4 },
   details: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, gap: 18 },

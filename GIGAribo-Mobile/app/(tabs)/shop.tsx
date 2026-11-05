@@ -1,19 +1,50 @@
-import React from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { categories, services } from '@/constants/marketplace';
-import { ActionButton, BrandMark, CategoryTile, HorizontalServices, IconButton, Page, SectionHeading, ServiceCard, uiStyles } from '@/components/MarketplaceUI';
+import { ActionButton, BrandMark, CategoryTile, IconButton, Page, SectionHeading, ServiceCard, ServiceGrid, ServiceRow, uiStyles } from '@/components/MarketplaceUI';
 
 const bannerImage = require('@/assets/images/cleaning-banner.jpg');
+
+type Notice = {
+  id: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+  title: string;
+  body: string;
+  time: string;
+  route: Href;
+  unread: boolean;
+};
+
+// Sample notifications for the demo.
+const initialNotices: Notice[] = [
+  { id: 'welcome', icon: 'gift', title: 'Welcome to GIGAribo', body: 'Use code GIGA10 for 10% off your first booking (demo offer).', time: 'Just now', route: '/settings/promo', unread: true },
+  { id: 'requests', icon: 'file-text', title: 'Your requests', body: 'Add a service to Requests, then pick a date and check out.', time: 'Today', route: '/(tabs)/requests', unread: true },
+  { id: 'top-rated', icon: 'star', title: 'Top rated near you', body: 'Roofing and House cleaning are both rated 4.9 this week.', time: 'Yesterday', route: '/(tabs)/explore', unread: false },
+];
 
 export default function ShopScreen() {
   const colors = useColors();
   const { location, favorites, toggleFavorite } = useMarketplace();
+  const insets = useSafeAreaInsets();
   const featured = services.slice(0, 4);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notices, setNotices] = useState<Notice[]>(initialNotices);
+  const unreadCount = notices.filter((notice) => notice.unread).length;
+  // Place the popup just under the bell (page top padding + scroll padding + header height).
+  const popupTop = (Platform.OS === 'web' ? 67 : insets.top) + 8 + 46;
+
+  const openNotice = (notice: Notice) => {
+    setNotices((current) => current.map((item) => (item.id === notice.id ? { ...item, unread: false } : item)));
+    setNotifOpen(false);
+    router.push(notice.route);
+  };
+  const markAllRead = () => setNotices((current) => current.map((item) => ({ ...item, unread: false })));
 
   return (
     <Page tabbed>
@@ -27,7 +58,14 @@ export default function ShopScreen() {
               <Feather name="chevron-down" size={13} color={colors.mutedForeground} />
             </Pressable>
           </View>
-          <IconButton icon="bell" accessibilityLabel="Notifications" onPress={() => router.push('/(tabs)/account')} />
+          <View>
+            <IconButton filled icon="bell" accessibilityLabel="Notifications" onPress={() => setNotifOpen(true)} />
+            {unreadCount > 0 ? (
+              <View pointerEvents="none" style={[styles.badge, { backgroundColor: colors.destructive, borderColor: colors.background }]}>
+                <Text style={styles.badgeText}>{unreadCount}</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <Pressable onPress={() => router.push('/(tabs)/explore')} style={[styles.search, { backgroundColor: colors.card }]}>
@@ -49,26 +87,27 @@ export default function ShopScreen() {
 
         <View style={styles.section}>
           <SectionHeading title="Find a service" action="See all" onAction={() => router.push('/(tabs)/explore')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 18 }}>
+          <View style={styles.categoryGrid}>
             {categories.map((category) => (
-              <CategoryTile key={category.id} category={category} onPress={() => router.push({ pathname: '/(tabs)/explore', params: { category: category.id } })} />
+              <CategoryTile key={category.id} category={category} width="31.5%" onPress={() => router.push({ pathname: '/(tabs)/explore', params: { category: category.id } })} />
             ))}
-          </ScrollView>
+          </View>
         </View>
 
         <View style={styles.section}>
           <SectionHeading title="Featured services" action="See all" onAction={() => router.push('/(tabs)/explore')} />
-          <HorizontalServices>
+          <ServiceGrid>
             {featured.map((service) => (
               <ServiceCard
                 key={service.id}
                 service={service}
+                width="48%"
                 favorite={favorites.includes(service.id)}
                 onPress={() => router.push({ pathname: '/service/[id]', params: { id: service.id } })}
                 onToggleFavorite={() => toggleFavorite(service.id)}
               />
             ))}
-          </HorizontalServices>
+          </ServiceGrid>
         </View>
 
         <Pressable onPress={() => router.push('/settings/promo')} style={styles.promo}>
@@ -93,9 +132,9 @@ export default function ShopScreen() {
 
         <View style={styles.section}>
           <SectionHeading title="Popular near you" action="Browse" onAction={() => router.push('/(tabs)/explore')} />
-          <HorizontalServices>
-            {services.slice(2, 6).map((service) => (
-              <ServiceCard
+          <View style={{ gap: 12 }}>
+            {services.slice(2, 5).map((service) => (
+              <ServiceRow
                 key={service.id}
                 service={service}
                 favorite={favorites.includes(service.id)}
@@ -103,7 +142,7 @@ export default function ShopScreen() {
                 onToggleFavorite={() => toggleFavorite(service.id)}
               />
             ))}
-          </HorizontalServices>
+          </View>
         </View>
 
         <View style={[styles.bottomNote, { backgroundColor: colors.accent }]}>
@@ -112,12 +151,86 @@ export default function ShopScreen() {
         </View>
         <View style={{ marginTop: 8 }}><ActionButton label="View my requests" secondary onPress={() => router.push('/(tabs)/requests')} /></View>
       </ScrollView>
+
+      <Modal visible={notifOpen} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setNotifOpen(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close notifications"
+            style={[StyleSheet.absoluteFill, { backgroundColor: colors.modalScrim }]}
+            onPress={() => setNotifOpen(false)}
+          />
+          <View pointerEvents="box-none" style={[styles.popupWrap, { paddingTop: popupTop }]}>
+            <View style={[styles.popup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.popupHeader}>
+                <Text style={[styles.popupTitle, { color: colors.foreground }]}>Notifications</Text>
+                <View style={styles.popupActions}>
+                  {unreadCount > 0 ? (
+                    <Pressable onPress={markAllRead} accessibilityRole="button" hitSlop={8}>
+                      <Text style={[styles.markRead, { color: colors.primary }]}>Mark all read</Text>
+                    </Pressable>
+                  ) : null}
+                  <IconButton icon="x" size={18} accessibilityLabel="Close notifications" onPress={() => setNotifOpen(false)} />
+                </View>
+              </View>
+              {notices.map((notice, index) => (
+                <Pressable
+                  key={notice.id}
+                  accessibilityRole="button"
+                  onPress={() => openNotice(notice)}
+                  style={({ pressed }) => [
+                    styles.notice,
+                    { borderTopColor: colors.border, borderTopWidth: index === 0 ? 0 : 1, backgroundColor: pressed ? colors.muted : 'transparent' },
+                  ]}
+                >
+                  <View style={[styles.noticeIcon, { backgroundColor: colors.accent }]}>
+                    <Feather name={notice.icon} size={17} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.noticeTitle, { color: colors.foreground }]}>{notice.title}</Text>
+                    <Text style={[styles.noticeBody, { color: colors.mutedForeground }]}>{notice.body}</Text>
+                    <Text style={[styles.noticeTime, { color: colors.mutedForeground }]}>{notice.time}</Text>
+                  </View>
+                  {notice.unread ? <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} /> : null}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Page>
   );
 }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 17 },
+  badge: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  modalRoot: { flex: 1 },
+  popupWrap: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 20 },
+  popup: {
+    alignSelf: 'flex-end',
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#0E1838',
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  popupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 16, paddingRight: 6, paddingTop: 8, paddingBottom: 4 },
+  popupTitle: { fontSize: 16, fontWeight: '800' },
+  popupActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  markRead: { fontSize: 11, fontWeight: '700' },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
+  noticeIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  noticeTitle: { fontSize: 13, fontWeight: '800' },
+  noticeBody: { fontSize: 12, lineHeight: 17, marginTop: 3 },
+  noticeTime: { fontSize: 10, marginTop: 6, opacity: 0.8 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   location: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 1, maxWidth: 250 },
   locationText: { fontSize: 11, fontWeight: '600', maxWidth: 210 },
   search: { minHeight: 48, borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, marginBottom: 18 },
@@ -130,6 +243,7 @@ const styles = StyleSheet.create({
   bannerCopy: { fontSize: 11, marginTop: 5 },
   bannerArrow: { position: 'absolute', right: 15, bottom: 15, width: 33, height: 33, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   section: { marginBottom: 23 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   promo: { borderRadius: 20, overflow: 'hidden', marginBottom: 23 },
   promoGradient: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
   promoTag: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', letterSpacing: 1, opacity: 0.85 },
