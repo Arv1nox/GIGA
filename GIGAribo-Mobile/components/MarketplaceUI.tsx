@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Platform,
   Pressable,
@@ -13,7 +14,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -138,6 +139,67 @@ export function IconButton({
       ]}
     >
       <Feather name={icon} size={size} color={color ?? colors.foreground} />
+    </Pressable>
+  );
+}
+
+/** A solid heart when saved and an outline when not, with a small pop when it is tapped. */
+export function HeartIcon({ active, size = 18, inactiveColor }: { active: boolean; size?: number; inactiveColor?: string }) {
+  const colors = useColors();
+  const scale = useRef(new Animated.Value(1)).current;
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    scale.setValue(0.6);
+    Animated.spring(scale, { toValue: 1, friction: 3, tension: 170, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [active, scale]);
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Ionicons
+        name={active ? 'heart' : 'heart-outline'}
+        size={size}
+        color={active ? colors.destructive : inactiveColor ?? colors.navy}
+      />
+    </Animated.View>
+  );
+}
+
+/** Round heart button used on service photos and rows. */
+export function HeartButton({
+  favorite,
+  onPress,
+  size = 20,
+  filled = false,
+  inactiveColor,
+}: {
+  favorite: boolean;
+  onPress: () => void;
+  size?: number;
+  /** Draws a white circle behind the heart so it stays visible on top of photos. */
+  filled?: boolean;
+  inactiveColor?: string;
+}) {
+  const colors = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
+      accessibilityState={{ selected: favorite }}
+      onPress={() => {
+        if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.iconButton,
+        filled ? [styles.iconButtonFilled, { backgroundColor: colors.card }] : null,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      <HeartIcon active={favorite} size={size} inactiveColor={inactiveColor} />
     </Pressable>
   );
 }
@@ -269,7 +331,7 @@ export function ServiceCard({
           hitSlop={6}
           style={[styles.heartButton, { backgroundColor: colors.card }]}
         >
-          <Feather name="heart" size={16} color={favorite ? colors.destructive : colors.navy} />
+          <HeartIcon active={favorite} size={17} />
         </Pressable>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress} style={({ pressed }) => [styles.serviceCardBody, { opacity: pressed ? 0.8 : 1 }]}>
@@ -315,12 +377,7 @@ export function ServiceRow({
           </View>
         </View>
       </Pressable>
-      <IconButton
-        icon="heart"
-        color={favorite ? colors.destructive : colors.mutedForeground}
-        onPress={onToggleFavorite}
-        accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
-      />
+      <HeartButton favorite={favorite} onPress={onToggleFavorite} inactiveColor={colors.mutedForeground} />
     </View>
   );
 }

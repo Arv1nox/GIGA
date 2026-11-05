@@ -33,9 +33,11 @@ const initialNotices: Notice[] = [
 
 export default function ShopScreen() {
   const colors = useColors();
-  const { location, favorites, toggleFavorite, allServices } = useMarketplace();
+  const { location, favorites, toggleFavorite, allServices, customServices } = useMarketplace();
   const insets = useSafeAreaInsets();
   const featured = allServices.slice(0, 4);
+  // Services providers added in the app, newest first (paused ones are hidden from customers).
+  const newFromProviders = customServices.filter((service) => service.active !== false);
   // Set by the service page after "Add to requests" to show the popup here.
   const { added, t } = useLocalSearchParams<{ added?: string; t?: string }>();
   const tour = useGetStartedTour();
@@ -117,6 +119,23 @@ export default function ShopScreen() {
             ))}
           </ServiceGrid>
         </View>
+
+        {newFromProviders.length > 0 ? (
+          <View style={styles.section}>
+            <SectionHeading title="New from local providers" action="See all" onAction={() => router.push('/(tabs)/explore')} />
+            <View style={{ gap: 12 }}>
+              {newFromProviders.slice(0, 3).map((service) => (
+                <ServiceRow
+                  key={service.id}
+                  service={service}
+                  favorite={favorites.includes(service.id)}
+                  onPress={() => router.push({ pathname: '/service/[id]', params: { id: service.id } })}
+                  onToggleFavorite={() => toggleFavorite(service.id)}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <Pressable onPress={() => router.push('/settings/promo')} style={styles.promo}>
           <LinearGradient colors={['#2860E8', '#38B6F5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.promoGradient}>

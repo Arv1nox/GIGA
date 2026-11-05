@@ -1,30 +1,34 @@
 import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/lib/alert';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { ActionButton, BrandMark, FormField, IconButton, Page } from '@/components/MarketplaceUI';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { useAuth } from '@/context/AuthContext';
-import { categories } from '@/constants/marketplace';
+import { categories, formatPrice } from '@/constants/marketplace';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
-/** Providers add a service customers can find and request. */
+const PRICE_IDEAS = [500, 850, 1200, 2000];
+
+/** Providers add (or edit) a service customers can find and request. */
 export default function AddServiceScreen() {
   const colors = useColors();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const { session, isProvider, loading } = useAuth();
-  const { addCustomService } = useMarketplace();
+  const { addCustomService, updateCustomService, customServices } = useMarketplace();
   const meta = session?.user.user_metadata ?? {};
+  const editing = id ? customServices.find((item) => item.id === id && item.ownerId === session?.user.id) : undefined;
 
-  const [title, setTitle] = useState('');
-  const [subtitle, setSubtitle] = useState('');
-  const [category, setCategory] = useState(String(meta.service_category ?? ''));
-  const [price, setPrice] = useState('');
-  const [area, setArea] = useState(String(meta.base_area ?? 'Naga City'));
-  const [areas, setAreas] = useState('');
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [subtitle, setSubtitle] = useState(editing && editing.subtitle !== editing.title ? editing.subtitle : '');
+  const [category, setCategory] = useState(editing?.category ?? String(meta.service_category ?? ''));
+  const [price, setPrice] = useState(editing ? String(editing.price) : '');
+  const [area, setArea] = useState(editing?.area ?? String(meta.base_area ?? 'Naga City'));
+  const [areas, setAreas] = useState(editing ? editing.serviceAreas.join(', ') : '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const subtitleRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
@@ -51,11 +55,14 @@ export default function AddServiceScreen() {
     );
   }
 
+  const amount = Number(price.replace(/[^\d.]/g, ''));
+  const chosen = categories.find((item) => item.id === category);
+  const businessName = String(meta.business_name ?? '').trim() || String(meta.name ?? '').trim();
+
   async function saveService() {
     const cleanTitle = title.trim();
     const cleanSubtitle = subtitle.trim();
     const cleanArea = area.trim();
-    const amount = Number(price.replace(/[^\d.]/g, ''));
     const serviceAreas = areas
       .split(',')
       .map((item) => item.trim())
@@ -79,25 +86,28 @@ export default function AddServiceScreen() {
     }
     if (!session || isSubmitting) return;
 
-    const businessName = String(meta.business_name ?? '').trim() || String(meta.name ?? '').trim();
+    const input = {
+      title: cleanTitle,
+      subtitle: cleanSubtitle || cleanTitle,
+      category,
+      price: Math.round(amount),
+      area: cleanArea,
+      serviceAreas: serviceAreas.length > 0 ? serviceAreas : [cleanArea],
+    };
+
     setIsSubmitting(true);
     try {
-      await addCustomService(
-        {
-          title: cleanTitle,
-          subtitle: cleanSubtitle || cleanTitle,
-          category,
-          price: Math.round(amount),
-          area: cleanArea,
-          serviceAreas: serviceAreas.length > 0 ? serviceAreas : [cleanArea],
-        },
-        { id: session.user.id, businessName, about: String(meta.about ?? ''), area: cleanArea }
-      );
-      Alert.alert('Service added', `"${cleanTitle}" is now listed for customers to find.`, [
-        { text: 'OK', onPress: () => router.replace('/my-services') },
-      ]);
+      const result = editing
+        ? await updateCustomService(editing.id, input)
+        : await addCustomService(input, { id: session.user.id, businessName, about: String(meta.about ?? '') });
+      const message = result.synced
+        ? editing
+          ? `"${cleanTitle}" was updated for customers.`
+          : `"${cleanTitle}" is now listed for customers to find.`
+        : `"${cleanTitle}" was saved on this phone only. Customers can't see it until the shared services table is set up in Supabase (supabase/services.sql). You can share it later from My services.`;
+      Alert.alert(editing ? 'Service updated' : 'Service added', message, [{ text: 'OK', onPress: () => router.replace('/my-services') }]);
     } catch (error) {
-      Alert.alert('Could not add service', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Could not save service', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -108,8 +118,20 @@ export default function AddServiceScreen() {
       <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bottomOffset={72}>
         <IconButton icon="chevron-left" accessibilityLabel="Back" onPress={goBack} />
         <View style={styles.logo}><BrandMark /></View>
-        <Text style={[styles.title, { color: colors.foreground }]}>Add a service</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{editing ? 'Edit service' : 'Add a service'}</Text>
         <Text style={[styles.copy, { color: colors.mutedForeground }]}>Tell customers what you offer and where.</Text>
+
+        <View style={[styles.preview, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.previewIcon, { backgroundColor: colors.accent }]}>
+            <Feather name={(chosen?.icon ?? 'briefcase') as FeatherName} size={20} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: colors.mutedForeground, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>HOW CUSTOMERS WILL SEE IT</Text>
+            <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 15, fontWeight: '800' }}>{title.trim() || 'Your service name'}</Text>
+            <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 12 }}>{businessName || 'Your business'} · {area.trim() || 'Your area'}</Text>
+          </View>
+          <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: '800' }}>{Number.isFinite(amount) && amount > 0 ? formatPrice(Math.round(amount)) : '₱—'}</Text>
+        </View>
 
         <FormField
           label="Service name"
@@ -153,18 +175,33 @@ export default function AddServiceScreen() {
           </View>
         </View>
 
-        <FormField
-          label="Starting price (₱)"
-          value={price}
-          onChangeText={setPrice}
-          placeholder="850"
-          keyboardType="number-pad"
-          maxLength={7}
-          inputRef={priceRef}
-          returnKeyType="next"
-          onSubmitEditing={() => areaRef.current?.focus()}
-          submitBehavior="submit"
-        />
+        <View style={{ gap: 9 }}>
+          <FormField
+            label="Starting price (₱)"
+            value={price}
+            onChangeText={setPrice}
+            placeholder="850"
+            keyboardType="number-pad"
+            maxLength={7}
+            inputRef={priceRef}
+            returnKeyType="next"
+            onSubmitEditing={() => areaRef.current?.focus()}
+            submitBehavior="submit"
+          />
+          <View style={styles.chips}>
+            {PRICE_IDEAS.map((idea) => (
+              <Pressable
+                key={idea}
+                accessibilityRole="button"
+                onPress={() => setPrice(String(idea))}
+                style={[styles.priceChip, { backgroundColor: Number(price) === idea ? colors.accent : colors.card, borderColor: Number(price) === idea ? colors.primary : colors.border }]}
+              >
+                <Text style={{ color: Number(price) === idea ? colors.primary : colors.mutedForeground, fontSize: 12, fontWeight: '700' }}>{formatPrice(idea)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <FormField
           label="Where are you based?"
           value={area}
@@ -187,7 +224,12 @@ export default function AddServiceScreen() {
           onSubmitEditing={saveService}
         />
 
-        <ActionButton label={isSubmitting ? 'Adding service...' : 'Add service'} icon="plus" onPress={saveService} disabled={isSubmitting} />
+        <ActionButton
+          label={isSubmitting ? 'Saving...' : editing ? 'Save changes' : 'Add service'}
+          icon={editing ? 'check' : 'plus'}
+          onPress={saveService}
+          disabled={isSubmitting}
+        />
       </KeyboardAwareScrollViewCompat>
     </Page>
   );
@@ -202,4 +244,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 9 },
+  priceChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 11, paddingVertical: 6 },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 16, padding: 12 },
+  previewIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

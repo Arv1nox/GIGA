@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { categories, formatPrice, getService, services } from '@/constants/marketplace';
 import { ActionButton } from '@/components/MarketplaceUI';
@@ -278,7 +278,7 @@ function FavouriteDemo() {
         <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel="Favourite" hitSlop={8}>
           <Animated.View style={{ transform: [{ scale }] }}>
             <View style={[styles.heartBtn, { backgroundColor: colors.accent }]}>
-              <Feather name="heart" size={18} color={fav ? colors.destructive : colors.navy} />
+              <Ionicons name={fav ? 'heart' : 'heart-outline'} size={19} color={fav ? colors.destructive : colors.navy} />
             </View>
           </Animated.View>
         </Pressable>

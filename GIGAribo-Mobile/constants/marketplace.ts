@@ -21,6 +21,12 @@ export type Service = {
   serviceAreas: string[];
   /** Supabase user id of the provider who added this service (only set for services added in the app). */
   ownerId?: string;
+  /** False while the provider has paused the service. Paused services are hidden from customers. */
+  active?: boolean;
+  /** About text for the provider's profile (only set for services added in the app). */
+  providerAbout?: string;
+  /** True once the service is saved in the shared database, so every customer can see it. */
+  synced?: boolean;
 };
 
 export type Provider = {
@@ -215,25 +221,48 @@ export const services: Service[] = [
 ];
 
 /**
- * Services and provider profiles that providers added from inside the app.
- * MarketplaceContext keeps these in sync (and saved on the device), so the
- * lookup helpers below can find them alongside the built-in sample data.
+ * Services that providers added from inside the app.
+ * MarketplaceContext keeps this in sync (shared database + saved on the device),
+ * so the lookup helpers below can find them alongside the built-in sample data.
  */
 let customServices: Service[] = [];
 let customProviders: Provider[] = [];
 
-export function setCustomMarketplace(nextServices: Service[], nextProviders: Provider[]) {
-  customServices = nextServices;
-  customProviders = nextProviders;
+const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+export function providerSlug(name: string) {
+  return slugify(name) || 'provider';
 }
 
-/** Built-in sample services plus any services providers added. */
+/** Provider profiles are built from the services each provider added. */
+export function setCustomMarketplace(nextServices: Service[]) {
+  customServices = nextServices;
+  const byName = new Map<string, Provider>();
+  for (const service of nextServices) {
+    if (byName.has(service.provider)) continue;
+    const category = categories.find((item) => item.id === service.category);
+    byName.set(service.provider, {
+      id: providerSlug(service.provider),
+      name: service.provider,
+      icon: category?.icon ?? 'briefcase',
+      tagline: service.subtitle || service.title,
+      about: service.providerAbout?.trim() || `${service.provider} offers home services in ${service.area}.`,
+      area: service.area,
+      yearsActive: 0,
+      responseTime: 'Within a day',
+    });
+  }
+  customProviders = [...byName.values()];
+}
+
+/** Built-in sample services plus live services providers added (paused ones are hidden). */
 export function getAllServices() {
-  return [...services, ...customServices];
+  return [...services, ...customServices.filter((service) => service.active !== false)];
 }
 
 export function getService(id: string | undefined) {
-  return getAllServices().find((service) => service.id === id);
+  // Search every custom service (even paused ones) so a provider can still open their own listing.
+  return [...services, ...customServices].find((service) => service.id === id);
 }
 
 export const providers: Provider[] = [
@@ -349,6 +378,10 @@ export function getProviderById(id: string | undefined) {
 
 export function getProviderServices(providerName: string) {
   return getAllServices().filter((service) => service.provider === providerName);
+}
+
+export function getCustomServices() {
+  return customServices;
 }
 
 /** Overall rating and review count, worked out from the provider's services. */

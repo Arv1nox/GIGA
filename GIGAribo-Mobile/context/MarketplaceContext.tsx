@@ -1,16 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import {
-  categories,
   getAllServices,
   getService,
   setCustomMarketplace,
   type CheckoutDetails,
   type Profile,
-  type Provider,
   type Service,
   type ServiceRequest,
 } from '@/constants/marketplace';
+import { useAuth } from '@/context/AuthContext';
+import { deleteRemoteService, fetchRemoteServices, insertRemoteService, updateRemoteService } from '@/lib/remoteServices';
 import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
@@ -19,9 +20,8 @@ type MarketplaceState = {
   requests: ServiceRequest[];
   profile: Profile;
   notificationsEnabled: boolean;
-  /** Services providers added from inside the app (saved on this device). */
+  /** Services providers added from inside the app: shared ones from the database plus any saved only on this device. */
   customServices: Service[];
-  customProviders: Provider[];
 };
 
 export type NewServiceInput = {
@@ -37,15 +37,18 @@ export type ProviderOwner = {
   id: string;
   businessName: string;
   about?: string;
-  area?: string;
 };
 
 type MarketplaceContextValue = MarketplaceState & {
   hydrated: boolean;
   /** Built-in sample services plus services providers added. */
   allServices: Service[];
-  addCustomService: (input: NewServiceInput, owner: ProviderOwner) => Promise<Service>;
+  /** `synced` is false when the service could only be saved on this device (database not set up or offline). */
+  addCustomService: (input: NewServiceInput, owner: ProviderOwner) => Promise<{ service: Service; synced: boolean }>;
+  updateCustomService: (serviceId: string, changes: Partial<NewServiceInput> & { active?: boolean }) => Promise<{ synced: boolean }>;
   removeCustomService: (serviceId: string) => Promise<void>;
+  /** Pulls the latest shared services so customers see what providers just added. */
+  refreshServices: () => Promise<void>;
   setLocation: (location: string) => void;
   toggleFavorite: (serviceId: string) => void;
   addRequest: (serviceId: string, serviceArea?: string) => Promise<void>;
@@ -66,7 +69,6 @@ const initialState: MarketplaceState = {
   profile: emptyProfile,
   notificationsEnabled: true,
   customServices: [],
-  customProviders: [],
 };
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null);
@@ -97,7 +99,6 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
           ...saved,
           requests,
           customServices: Array.isArray(saved.customServices) ? saved.customServices : [],
-          customProviders: Array.isArray(saved.customProviders) ? saved.customProviders : [],
         });
       })
       .catch(() => {
@@ -111,13 +112,44 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
+  const { session } = useAuth();
+  const sessionUser = session?.user.id ?? null;
+
+  // Load shared services once the saved data is in, again when someone signs in or out, and when the app comes back to the foreground.
+  useEffect(() => {
+    if (!hydrated) return;
+    let active = true;
+    const refresh = () => {
+      fetchRemoteServices()
+        .then((remote) => {
+          if (!active) return;
+          setState((previous) => {
+            const remoteIds = new Set(remote.map((item) => item.id));
+            const deviceOnly = previous.customServices.filter((item) => !item.synced && !remoteIds.has(item.id));
+            const next = { ...previous, customServices: [...remote, ...deviceOnly] };
+            void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            return next;
+          });
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status === 'active') refresh();
+    });
+    return () => {
+      active = false;
+      sub.remove();
+    };
+  }, [hydrated, sessionUser]);
+
   const save = (next: MarketplaceState) => {
     setState(next);
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
   // Keep the lookup helpers in constants/marketplace.ts aware of services providers added.
-  setCustomMarketplace(state.customServices, state.customProviders);
+  setCustomMarketplace(state.customServices);
 
   const value = useMemo<MarketplaceContextValue>(() => ({
     ...state,
@@ -126,44 +158,76 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     addCustomService: async (input, owner) => {
       const businessName = owner.businessName.trim();
       if (!businessName) throw new Error('Your provider profile needs a business name.');
-      const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const slug = input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service';
       const service: Service = {
-        id: `custom-${slug(input.title) || 'service'}-${Date.now().toString(36)}`,
+        id: `custom-${slug}-${Date.now().toString(36)}`,
         title: input.title,
         subtitle: input.subtitle,
         category: input.category,
         price: input.price,
         provider: businessName,
+        providerAbout: owner.about?.trim() ?? '',
         rating: 0,
         reviews: 0,
         image: input.category === 'cleaning' ? 'cleaning' : 'repair',
         area: input.area,
         serviceAreas: input.serviceAreas,
         ownerId: owner.id,
+        active: true,
+        synced: false,
       };
-      const hasProfile = [...state.customProviders].some((item) => item.name === businessName);
-      const icon = categories.find((item) => item.id === input.category)?.icon ?? 'briefcase';
-      const profileCard: Provider = {
-        id: slug(businessName) || `provider-${owner.id.slice(0, 8)}`,
-        name: businessName,
-        icon,
-        tagline: input.subtitle || input.title,
-        about: owner.about?.trim() || `${businessName} offers home services in ${input.area}.`,
-        area: input.area,
-        yearsActive: 0,
-        responseTime: 'Within a day',
-      };
+      // Try the shared database first so every customer can see it; fall back to this device only.
+      let synced = false;
+      try {
+        await insertRemoteService(service);
+        synced = true;
+      } catch {
+        synced = false;
+      }
+      const saved: Service = { ...service, synced };
+      const next: MarketplaceState = { ...state, customServices: [saved, ...state.customServices] };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setState(next);
+      return { service: saved, synced };
+    },
+    updateCustomService: async (serviceId, changes) => {
+      const current = state.customServices.find((item) => item.id === serviceId);
+      if (!current) throw new Error('Service not found.');
+      const updated: Service = { ...current, ...changes };
+      let synced = Boolean(current.synced);
+      if (current.synced) {
+        try {
+          await updateRemoteService(updated);
+        } catch {
+          throw new Error('Could not save your changes. Check your connection and try again.');
+        }
+      } else {
+        // A service that only lives on this device may now be able to reach the database.
+        try {
+          await insertRemoteService(updated);
+          synced = true;
+        } catch {
+          synced = false;
+        }
+      }
       const next: MarketplaceState = {
         ...state,
-        customServices: [service, ...state.customServices],
-        customProviders: hasProfile ? state.customProviders : [profileCard, ...state.customProviders],
+        customServices: state.customServices.map((item) => (item.id === serviceId ? { ...updated, synced } : item)),
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
-      return service;
+      return { synced };
     },
     removeCustomService: async (serviceId) => {
-      if (!state.customServices.some((item) => item.id === serviceId)) throw new Error('Service not found.');
+      const current = state.customServices.find((item) => item.id === serviceId);
+      if (!current) throw new Error('Service not found.');
+      if (current.synced) {
+        try {
+          await deleteRemoteService(serviceId);
+        } catch {
+          throw new Error('Could not remove this service. Check your connection and try again.');
+        }
+      }
       const next: MarketplaceState = {
         ...state,
         customServices: state.customServices.filter((item) => item.id !== serviceId),
@@ -173,7 +237,22 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
     },
-    setLocation: (location) => save({ ...state, location }),
+    refreshServices: async () => {
+      let remote: Service[];
+      try {
+        remote = await fetchRemoteServices();
+      } catch {
+        return; // database not set up yet or offline: keep what we have
+      }
+      setState((previous) => {
+        const remoteIds = new Set(remote.map((item) => item.id));
+        // Keep services that only live on this device; everything else comes from the database.
+        const deviceOnly = previous.customServices.filter((item) => !item.synced && !remoteIds.has(item.id));
+        const next = { ...previous, customServices: [...remote, ...deviceOnly] };
+        void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
     toggleFavorite: (serviceId) => {
       const favorites = state.favorites.includes(serviceId)
         ? state.favorites.filter((id) => id !== serviceId)
