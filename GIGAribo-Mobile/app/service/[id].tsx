@@ -78,7 +78,7 @@ export default function ServiceDetailsScreen() {
           </View>
           <View style={[styles.reviewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.reviewCardTop}>
-              <View style={[styles.reviewAvatar, { backgroundColor: colors.categoryPeach }]}><Text style={{ color: colors.navy, fontWeight: '800' }}>M</Text></View>
+              <View style={[styles.reviewAvatar, { backgroundColor: colors.categoryPeach }]}><Text style={{ color: colors.foreground, fontWeight: '800' }}>M</Text></View>
               <View style={{ flex: 1 }}><Text style={[styles.providerName, { color: colors.foreground }]}>Sample review</Text><Text style={[styles.providerMeta, { color: colors.mutedForeground }]}>Preview content</Text></View>
               <Feather name="star" size={13} color="#F3A64C" /><Text style={[styles.ratingText, { color: colors.foreground }]}>5.0</Text>
             </View>

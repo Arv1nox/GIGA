@@ -1,97 +1,94 @@
 /**
  * Semantic design tokens for the mobile app.
- *
- * These tokens mirror the naming conventions used in web artifacts (index.css)
- * so that multi-artifact projects share a cohesive visual identity.
- *
- * Replace the placeholder values below with values that match the project's
- * brand. If a sibling web artifact exists, read its index.css and convert the
- * HSL values to hex so both artifacts use the same palette.
- *
- * To add dark mode, add a `dark` key with the same token names.
- * The useColors() hook will automatically pick it up.
+ * Light: bright, friendly blue with soft pastel accents.
+ * Dark: deep navy surfaces with a readable mid-blue for headings and buttons.
  */
 
 const colors = {
   light: {
-    // Legacy aliases (kept for backward compatibility)
-    text: '#17213C',
-    tint: '#4D7EE8',
+    // Legacy aliases
+    text: '#16213E',
+    tint: '#2860E8',
 
     // Core surfaces
-    background: '#F7F8FC',
-    foreground: '#17213C',
+    background: '#F5F8FF',
+    foreground: '#16213E',
 
     // Cards / elevated surfaces
     card: '#FFFFFF',
-    cardForeground: '#17213C',
+    cardForeground: '#16213E',
 
-    // Primary action color (buttons, links, active states)
-    primary: '#4D7EE8',
-    primaryForeground: '#ffffff',
+    // Primary action color (links, active states)
+    primary: '#2860E8',
+    primaryForeground: '#FFFFFF',
 
-    // Secondary / less-emphasis interactive surfaces
-    secondary: '#EEF2FB',
-    secondaryForeground: '#25345D',
+    // Secondary surfaces
+    secondary: '#EDF2FF',
+    secondaryForeground: '#22397A',
 
-    // Muted / subdued elements (dividers, timestamps, placeholders)
-    muted: '#F0F2F7',
-    mutedForeground: '#858DA0',
+    // Muted text and surfaces
+    muted: '#EEF2FA',
+    mutedForeground: '#5B667F',
 
-    // Accent highlights (badges, selected items, focus rings)
-    accent: '#E7F3FC',
-    accentForeground: '#1D3868',
+    // Highlights (badges, selected items)
+    accent: '#E6EFFF',
+    accentForeground: '#1B3A8A',
 
-    // Destructive actions (delete, error states)
-    destructive: '#E05D61',
-    destructiveForeground: '#ffffff',
+    // Destructive actions
+    destructive: '#DC3E4A',
+    destructiveForeground: '#FFFFFF',
 
-    // Borders and input outlines
-    border: '#E6E9F0',
-    input: '#E6E9F0',
-    navy: '#202D5B',
-    sky: '#58B5E7',
-    categoryBlue: '#EAF4FC',
-    categoryGreen: '#E6F4EB',
-    categoryPeach: '#FFF0E5',
-    categoryPink: '#FBEAF0',
-    categoryLavender: '#F1EDFA',
-    categoryYellow: '#FFF6DE',
-    modalScrim: 'rgba(12, 22, 50, 0.48)',
+    // Borders and inputs
+    border: '#DDE5F3',
+    input: '#DDE5F3',
+
+    // Brand
+    navy: '#162B63',
+    sky: '#38B6F5',
+
+    // Soft category tints
+    categoryBlue: '#E3EEFF',
+    categoryGreen: '#DDF3E8',
+    categoryPeach: '#FFE9D6',
+    categoryPink: '#FCE3EC',
+    categoryLavender: '#ECE6FB',
+    categoryYellow: '#FFF2CC',
+
+    modalScrim: 'rgba(14, 24, 56, 0.5)',
   },
 
   dark: {
-    text: '#F3F5FB',
-    tint: '#79A1FF',
-    background: '#10182B',
-    foreground: '#F3F5FB',
-    card: '#19243A',
-    cardForeground: '#F3F5FB',
-    primary: '#79A1FF',
-    primaryForeground: '#10182B',
-    secondary: '#202D46',
-    secondaryForeground: '#E6ECF9',
-    muted: '#20283A',
-    mutedForeground: '#A0ABC1',
-    accent: '#243651',
-    accentForeground: '#D8E9FF',
-    destructive: '#E7777B',
+    text: '#F2F5FF',
+    tint: '#7FA6FF',
+    background: '#0E1526',
+    foreground: '#F2F5FF',
+    card: '#172138',
+    cardForeground: '#F2F5FF',
+    primary: '#7FA6FF',
+    primaryForeground: '#0E1526',
+    secondary: '#1D2A45',
+    secondaryForeground: '#E4EBFF',
+    muted: '#1B2540',
+    mutedForeground: '#A8B3CC',
+    accent: '#1F3157',
+    accentForeground: '#D6E4FF',
+    destructive: '#F0777F',
     destructiveForeground: '#FFFFFF',
-    border: '#2C3850',
-    input: '#2C3850',
-    navy: '#182543',
-    sky: '#65BCEB',
-    categoryBlue: '#203447',
-    categoryGreen: '#1D392F',
-    categoryPeach: '#3D3028',
-    categoryPink: '#3C2B36',
-    categoryLavender: '#312B44',
-    categoryYellow: '#3B3524',
-    modalScrim: 'rgba(5, 10, 24, 0.72)',
+    border: '#2A3757',
+    input: '#2A3757',
+    // Mid blue so it reads as text on dark AND as a button color with white text.
+    navy: '#4A78EE',
+    sky: '#5CC3F5',
+    categoryBlue: '#1B2F4D',
+    categoryGreen: '#1A3A30',
+    categoryPeach: '#3D2E24',
+    categoryPink: '#3B2634',
+    categoryLavender: '#2E2848',
+    categoryYellow: '#3A3320',
+    modalScrim: 'rgba(4, 8, 20, 0.72)',
   },
 
-  // Border radius (in px). Sync from the sibling web artifact's --radius
-  // CSS variable. This value applies to cards, buttons, inputs, and modals.
+  // Border radius (in px) for cards, buttons, inputs, and modals.
   radius: 18,
 };
 

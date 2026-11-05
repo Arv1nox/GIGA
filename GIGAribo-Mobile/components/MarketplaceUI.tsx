@@ -49,7 +49,7 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
       <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
         <Feather name="home" size={compact ? 17 : 20} color={colors.primary} />
       </View>
-      <Text style={[styles.brandName, { color: colors.navy, fontSize: compact ? 17 : 20 }]}>
+      <Text style={[styles.brandName, { color: colors.foreground, fontSize: compact ? 17 : 20 }]}>
         GIGA<Text style={{ color: colors.primary }}>ribo</Text>
       </Text>
     </View>

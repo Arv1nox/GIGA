@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ActionButton, BrandMark, Page } from '@/components/MarketplaceUI';
+import { useAuth } from '@/context/AuthContext';
 
 const cover = require('@/assets/images/cleaning-banner.jpg');
 
 export default function WelcomeScreen() {
   const colors = useColors();
+  const { session, loading } = useAuth();
+  const checked = useRef(false);
+
+  // Skip the welcome screen once at startup if the person is already signed in.
+  useEffect(() => {
+    if (loading || checked.current) return;
+    checked.current = true;
+    if (session) router.replace('/(tabs)/shop');
+  }, [loading, session]);
+
   return (
     <Page>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -18,7 +29,7 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.message}>
-          <Text style={[styles.title, { color: colors.navy }]}>Make home feel{'\n'}taken care of.</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Make home feel{'\n'}taken care of.</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             Find trusted local help for the little jobs, the big fixes, and everything in between.
           </Text>
@@ -34,7 +45,7 @@ export default function WelcomeScreen() {
         </ImageBackground>
 
         <View style={styles.actions}>
-          <ActionButton label="Get started" icon="arrow-right" onPress={() => router.push('/signin')} />
+          <ActionButton label="Get started" icon="arrow-right" onPress={() => router.push('/register')} />
           <Pressable onPress={() => router.replace('/(tabs)/shop')} style={styles.guestButton}>
             <Text style={[styles.guestText, { color: colors.primary }]}>Explore as a guest</Text>
           </Pressable>
@@ -42,7 +53,7 @@ export default function WelcomeScreen() {
         <View style={styles.signInLine}>
           <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Already have an account?</Text>
           <Pressable onPress={() => router.push('/login')}>
-            <Text style={{ color: colors.navy, fontWeight: '800', fontSize: 13 }}> Sign in</Text>
+            <Text style={{ color: colors.foreground, fontWeight: '800', fontSize: 13 }}> Sign in</Text>
           </Pressable>
         </View>
       </ScrollView>

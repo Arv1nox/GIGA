@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getService, type CheckoutDetails, type Profile, type ServiceRequest } from '@/constants/marketplace';
+import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
   location: string;
@@ -145,6 +146,8 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     updateProfile: (profile) => save({ ...state, profile }),
     setNotificationsEnabled: (notificationsEnabled) => save({ ...state, notificationsEnabled }),
     signOut: async () => {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
       const next = { ...state, profile: emptyProfile };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);

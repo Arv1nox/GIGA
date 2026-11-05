@@ -40,9 +40,9 @@ export default function ShopScreen() {
         <Pressable onPress={() => router.push('/(tabs)/explore')} style={styles.banner}>
           <ImageBackground source={bannerImage} resizeMode="cover" style={StyleSheet.absoluteFill} imageStyle={styles.bannerImage} />
           <LinearGradient colors={['rgba(22,34,73,0.02)', 'rgba(22,34,73,0.85)']} style={styles.bannerGradient}>
-            <View style={[styles.offerTag, { backgroundColor: colors.card }]}><Text style={[styles.offerTagText, { color: colors.navy }]}>HOME SERVICES IN NAGA</Text></View>
-            <Text style={[styles.bannerTitle, { color: colors.primaryForeground }]}>A little care{'\n'}goes a long way.</Text>
-            <Text style={[styles.bannerCopy, { color: colors.primaryForeground }]}>Explore local home services</Text>
+            <View style={[styles.offerTag, { backgroundColor: colors.card }]}><Text style={[styles.offerTagText, { color: colors.foreground }]}>HOME SERVICES IN NAGA</Text></View>
+            <Text style={[styles.bannerTitle, { color: '#FFFFFF' }]}>A little care{'\n'}goes a long way.</Text>
+            <Text style={[styles.bannerCopy, { color: '#FFFFFF' }]}>Explore local home services</Text>
             <View style={[styles.bannerArrow, { backgroundColor: colors.card }]}><Feather name="arrow-up-right" size={17} color={colors.navy} /></View>
           </LinearGradient>
         </Pressable>

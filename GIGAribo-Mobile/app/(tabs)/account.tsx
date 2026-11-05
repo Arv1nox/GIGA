@@ -1,45 +1,35 @@
 import React, { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
+import { useAuth } from '@/context/AuthContext';
 import { ActionButton, Page, uiStyles } from '@/components/MarketplaceUI';
 
-const menu = [
-  { label: 'Requests', icon: 'inbox' as const },
-  { label: 'My details', icon: 'user' as const },
-  { label: 'Address', icon: 'map-pin' as const },
-  { label: 'Payment methods', icon: 'credit-card' as const },
-  { label: 'Promo code', icon: 'tag' as const },
-  { label: 'Help', icon: 'help-circle' as const },
-  { label: 'About', icon: 'info' as const },
+const menu: { label: string; icon: React.ComponentProps<typeof Feather>['name']; route: string }[] = [
+  { label: 'Requests', icon: 'inbox', route: '/(tabs)/requests' },
+  { label: 'My details', icon: 'user', route: '/settings/details' },
+  { label: 'Address', icon: 'map-pin', route: '/location' },
+  { label: 'Payment methods', icon: 'credit-card', route: '/settings/payment' },
+  { label: 'Promo code', icon: 'tag', route: '/settings/promo' },
+  { label: 'Help', icon: 'help-circle', route: '/settings/help' },
+  { label: 'About', icon: 'info', route: '/settings/about' },
 ];
 
 export default function AccountScreen() {
   const colors = useColors();
   const { profile, location, notificationsEnabled, setNotificationsEnabled, signOut } = useMarketplace();
+  const { session } = useAuth();
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
 
-  function handleMenu(label: string) {
-    if (label === 'Requests') {
-      router.push('/(tabs)/requests');
-    } else if (label === 'Address') {
-      router.push('/location');
-    } else if (label === 'My details') {
-      Alert.alert('My details', `${profile.name}${profile.email ? `\n${profile.email}` : ''}${profile.phone ? `\n${profile.phone}` : ''}`);
-    } else if (label === 'Payment methods') {
-      Alert.alert('Payment methods', 'Payment setup is not connected in this prototype.');
-    } else if (label === 'Promo code') {
-      Alert.alert('Promo code', 'Promo code redemption is not connected in this prototype.');
-    } else if (label === 'Help') {
-      Alert.alert('How can we help?', 'This preview keeps help local. Contact details will be added when the service is connected.');
-    } else {
-      Alert.alert('About GIGAribo', 'A neighborhood-first way to find home services in the Philippines.');
-    }
-  }
+  const signedIn = Boolean(session);
+  const displayName = signedIn ? profile.name : 'Guest';
+  const displayLine = signedIn
+    ? profile.email || session?.user.email || profile.phone
+    : 'Browsing as a guest';
 
   function handleSignOut() {
     setSignOutError('');
@@ -68,11 +58,16 @@ export default function AccountScreen() {
         <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.avatar, { backgroundColor: colors.accent }]}><Feather name="user" size={23} color={colors.primary} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.name, { color: colors.foreground }]}>{profile.name}</Text>
-            <Text style={[styles.email, { color: colors.mutedForeground }]}>{profile.email || profile.phone || 'Browsing as a guest'}</Text>
+            <Text style={[styles.name, { color: colors.foreground }]}>{displayName}</Text>
+            <Text style={[styles.email, { color: colors.mutedForeground }]}>{displayLine}</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign in" onPress={() => router.push('/login')}>
-            <Feather name="edit-2" size={16} color={colors.primary} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={signedIn ? 'Edit my details' : 'Sign in'}
+            hitSlop={10}
+            onPress={() => router.push((signedIn ? '/settings/details' : '/login') as Href)}
+          >
+            <Feather name={signedIn ? 'edit-2' : 'log-in'} size={16} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -81,7 +76,8 @@ export default function AccountScreen() {
           {menu.map((item, index) => (
             <Pressable
               key={item.label}
-              onPress={() => handleMenu(item.label)}
+              accessibilityRole="button"
+              onPress={() => router.push(item.route as Href)}
               style={[styles.menuRow, index < menu.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
             >
               <Feather name={item.icon} size={17} color={colors.navy} />
@@ -108,7 +104,15 @@ export default function AccountScreen() {
             <Text style={[styles.locationText, { color: colors.foreground }]}>{location}</Text>
           </View>
         </View>
-        <ActionButton label="Log out" secondary icon="log-out" onPress={handleSignOut} style={{ marginTop: 17 }} />
+
+        {signedIn ? (
+          <ActionButton label="Log out" secondary icon="log-out" onPress={handleSignOut} style={{ marginTop: 17 }} />
+        ) : (
+          <View style={{ marginTop: 17, gap: 10 }}>
+            <ActionButton label="Sign in" icon="log-in" onPress={() => router.push('/login')} />
+            <ActionButton label="Create account" secondary onPress={() => router.push('/register')} />
+          </View>
+        )}
         <Text style={[styles.version, { color: colors.mutedForeground }]}>GIGAribo · Local preview</Text>
       </ScrollView>
       <Modal

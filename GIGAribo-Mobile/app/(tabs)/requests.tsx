@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
+import { useAuth } from '@/context/AuthContext';
 import { getService, formatPrice, type ServiceRequest } from '@/constants/marketplace';
 import { ActionButton, EmptyState, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
 import { RequestCheckout } from '@/components/RequestCheckout';
@@ -11,10 +12,15 @@ import { RequestCheckout } from '@/components/RequestCheckout';
 export default function RequestsScreen() {
   const colors = useColors();
   const { requests, removeRequest, checkoutRequest, cancelRequest, hydrated } = useMarketplace();
+  const { session, loading: authLoading } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'checkout' | 'success' | 'cancelConfirm' | 'removeConfirm' | 'cancelled'>('checkout');
   const activeRequest = requests.find((request) => request.id === activeId);
   const activeService = getService(activeRequest?.serviceId);
+
+  function goToLogin() {
+    router.push({ pathname: '/login', params: { redirect: '/(tabs)/requests' } });
+  }
 
   function confirmRemove(request: ServiceRequest) {
     setActiveId(request.id);
@@ -86,7 +92,11 @@ export default function RequestsScreen() {
                     ) : null}
                     <Text style={[styles.price, { color: colors.foreground }]}>{formatPrice(request.checkout?.total ?? service.price)} <Text style={{ color: colors.mutedForeground, fontWeight: '500' }}>{request.checkout ? 'demo total' : 'starting price'}</Text></Text>
                     {request.status === 'Pending checkout' ? (
-                      <ActionButton label="Checkout" icon="arrow-right" onPress={() => { setActiveId(request.id); setMode('checkout'); }} />
+                      session ? (
+                        <ActionButton label="Checkout" icon="arrow-right" onPress={() => { setActiveId(request.id); setMode('checkout'); }} />
+                      ) : (
+                        <ActionButton label="Sign in to check out" icon="log-in" disabled={authLoading} onPress={goToLogin} />
+                      )
                     ) : request.status === 'Placed (demo)' ? (
                       <Pressable accessibilityRole="button" onPress={() => confirmCancel(request)} style={styles.cancelLink}>
                         <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancel demo request</Text>
@@ -114,7 +124,16 @@ export default function RequestsScreen() {
           mode={mode}
           onClose={() => setActiveId(null)}
           onBackHome={() => { setActiveId(null); router.push('/(tabs)/shop'); }}
-          onPlace={async (details) => { await checkoutRequest(activeRequest.id, details); setMode('success'); }}
+          onPlace={async (details) => {
+            if (!session) {
+              // Session expired while the sheet was open.
+              setActiveId(null);
+              goToLogin();
+              return;
+            }
+            await checkoutRequest(activeRequest.id, details);
+            setMode('success');
+          }}
           onCancel={async () => { await cancelRequest(activeRequest.id); setMode('cancelled'); }}
           onRemove={async () => { await removeRequest(activeRequest.id); setActiveId(null); }}
         />

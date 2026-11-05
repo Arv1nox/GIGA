@@ -229,7 +229,7 @@ export function RequestCheckout({ request, service, mode, onClose, onBackHome, o
               onPress={() => { void confirmChange(); }}
               style={[styles.cancelAction, { backgroundColor: colors.destructive, borderColor: colors.destructive }]}
             />
-            <Pressable accessibilityRole="button" onPress={onClose} style={styles.backHome}><Text style={[styles.backHomeText, { color: colors.navy }]}>Keep request</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={onClose} style={styles.backHome}><Text style={[styles.backHomeText, { color: colors.foreground }]}>Keep request</Text></Pressable>
           </View>
         </View>
       ) : (
