@@ -6,7 +6,8 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
-import { categories, services } from '@/constants/marketplace';
+import { categories } from '@/constants/marketplace';
+
 import { Toast } from '@/components/Toast';
 import { GetStartedCard, GetStartedTour, useGetStartedTour } from '@/components/GetStartedTour';
 import { ActionButton, BrandMark, CategoryTile, IconButton, Page, SectionHeading, ServiceCard, ServiceGrid, ServiceRow, uiStyles } from '@/components/MarketplaceUI';
@@ -32,9 +33,9 @@ const initialNotices: Notice[] = [
 
 export default function ShopScreen() {
   const colors = useColors();
-  const { location, favorites, toggleFavorite } = useMarketplace();
+  const { location, favorites, toggleFavorite, allServices } = useMarketplace();
   const insets = useSafeAreaInsets();
-  const featured = services.slice(0, 4);
+  const featured = allServices.slice(0, 4);
   // Set by the service page after "Add to requests" to show the popup here.
   const { added, t } = useLocalSearchParams<{ added?: string; t?: string }>();
   const tour = useGetStartedTour();
@@ -140,7 +141,7 @@ export default function ShopScreen() {
         <View style={styles.section}>
           <SectionHeading title="Popular near you" action="Browse" onAction={() => router.push('/(tabs)/explore')} />
           <View style={{ gap: 12 }}>
-            {services.slice(2, 5).map((service) => (
+            {allServices.slice(2, 5).map((service) => (
               <ServiceRow
                 key={service.id}
                 service={service}

@@ -3,13 +3,12 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
-import { services } from '@/constants/marketplace';
 import { EmptyState, Page, ServiceRow, uiStyles } from '@/components/MarketplaceUI';
 
 export default function FavouritesScreen() {
   const colors = useColors();
-  const { favorites, toggleFavorite } = useMarketplace();
-  const saved = services.filter((service) => favorites.includes(service.id));
+  const { favorites, toggleFavorite, allServices } = useMarketplace();
+  const saved = allServices.filter((service) => favorites.includes(service.id));
 
   return (
     <Page tabbed>

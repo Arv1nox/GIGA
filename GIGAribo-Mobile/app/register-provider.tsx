@@ -96,8 +96,8 @@ export default function RegisterProviderScreen() {
       updateProfile({ name: cleanName, email: cleanEmail, phone: cleanPhone });
       Alert.alert(
         'Provider account created',
-        'Adding your services to the app is not available in this preview yet.',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/shop') }]
+        'Next, add the services you offer so customers can find you.',
+        [{ text: 'Add a service', onPress: () => router.replace('/add-service') }]
       );
     } catch (error) {
       Alert.alert('Something went wrong', error instanceof Error ? error.message : 'Please try again.');
@@ -212,7 +212,7 @@ export default function RegisterProviderScreen() {
         />
 
         <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
-          Your account information is securely managed by Supabase. Adding your services to the app is not available in this preview yet.
+          Your account information is securely managed by Supabase.
         </Text>
 
         <ActionButton label={isSubmitting ? 'Creating account...' : 'Create provider account'} onPress={createProviderAccount} disabled={isSubmitting} />

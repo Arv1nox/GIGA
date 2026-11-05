@@ -19,6 +19,8 @@ export type Service = {
   area: string;
   /** Specific barangays / towns the provider covers. */
   serviceAreas: string[];
+  /** Supabase user id of the provider who added this service (only set for services added in the app). */
+  ownerId?: string;
 };
 
 export type Provider = {
@@ -212,8 +214,26 @@ export const services: Service[] = [
   },
 ];
 
+/**
+ * Services and provider profiles that providers added from inside the app.
+ * MarketplaceContext keeps these in sync (and saved on the device), so the
+ * lookup helpers below can find them alongside the built-in sample data.
+ */
+let customServices: Service[] = [];
+let customProviders: Provider[] = [];
+
+export function setCustomMarketplace(nextServices: Service[], nextProviders: Provider[]) {
+  customServices = nextServices;
+  customProviders = nextProviders;
+}
+
+/** Built-in sample services plus any services providers added. */
+export function getAllServices() {
+  return [...services, ...customServices];
+}
+
 export function getService(id: string | undefined) {
-  return services.find((service) => service.id === id);
+  return getAllServices().find((service) => service.id === id);
 }
 
 export const providers: Provider[] = [
@@ -320,15 +340,15 @@ export const providers: Provider[] = [
 ];
 
 export function getProvider(name: string | undefined) {
-  return providers.find((provider) => provider.name === name);
+  return [...providers, ...customProviders].find((provider) => provider.name === name);
 }
 
 export function getProviderById(id: string | undefined) {
-  return providers.find((provider) => provider.id === id);
+  return [...providers, ...customProviders].find((provider) => provider.id === id);
 }
 
 export function getProviderServices(providerName: string) {
-  return services.filter((service) => service.provider === providerName);
+  return getAllServices().filter((service) => service.provider === providerName);
 }
 
 /** Overall rating and review count, worked out from the provider's services. */

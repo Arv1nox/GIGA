@@ -4,7 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
-import { categories, services } from '@/constants/marketplace';
+import { categories } from '@/constants/marketplace';
+
 import { CategoryTile, EmptyState, IconButton, Page, SearchField, ServiceCard, SectionHeading, uiStyles } from '@/components/MarketplaceUI';
 
 export default function ExploreScreen() {
@@ -12,11 +13,11 @@ export default function ExploreScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(params.category ?? '');
-  const { favorites, toggleFavorite, location } = useMarketplace();
-  const visible = useMemo(() => services.filter((service) => {
+  const { favorites, toggleFavorite, location, allServices } = useMarketplace();
+  const visible = useMemo(() => allServices.filter((service) => {
     const matchesQuery = `${service.title} ${service.subtitle} ${service.provider}`.toLowerCase().includes(query.toLowerCase());
     return matchesQuery && (!selected || service.category === selected);
-  }), [query, selected]);
+  }), [allServices, query, selected]);
 
   return (
     <Page tabbed>

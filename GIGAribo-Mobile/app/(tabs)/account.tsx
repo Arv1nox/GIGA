@@ -20,12 +20,15 @@ const menu: { label: string; icon: React.ComponentProps<typeof Feather>['name'];
 export default function AccountScreen() {
   const colors = useColors();
   const { profile, location, notificationsEnabled, setNotificationsEnabled, signOut } = useMarketplace();
-  const { session } = useAuth();
+  const { session, isProvider } = useAuth();
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
 
   const signedIn = Boolean(session);
+  const menuItems = isProvider
+    ? [{ label: 'My services', icon: 'briefcase' as const, route: '/my-services' }, ...menu]
+    : menu;
   // Prefer the saved profile name; otherwise use the full name entered at sign-up.
   const signupName = String(session?.user.user_metadata?.name ?? '').trim();
   const displayName = signedIn ? (profile.name && profile.name !== 'Guest' ? profile.name : signupName || profile.name) : 'Guest';
@@ -61,6 +64,12 @@ export default function AccountScreen() {
           <View style={[styles.avatar, { backgroundColor: colors.accent }]}><Feather name="user" size={23} color={colors.primary} /></View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.name, { color: colors.foreground }]}>{displayName}</Text>
+            {signedIn ? (
+              <View style={[styles.roleBadge, { backgroundColor: colors.accent }]}>
+                <Feather name={isProvider ? 'briefcase' : 'user'} size={10} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '800' }}>{isProvider ? 'PROVIDER' : 'CUSTOMER'}</Text>
+              </View>
+            ) : null}
             <Text style={[styles.email, { color: colors.mutedForeground }]}>{displayLine}</Text>
           </View>
           <Pressable
@@ -75,12 +84,12 @@ export default function AccountScreen() {
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ACCOUNT</Text>
         <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {menu.map((item, index) => (
+          {menuItems.map((item, index) => (
             <Pressable
               key={item.label}
               accessibilityRole="button"
               onPress={() => router.push(item.route as Href)}
-              style={[styles.menuRow, index < menu.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+              style={[styles.menuRow, index < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
             >
               <Feather name={item.icon} size={17} color={colors.navy} />
               <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
@@ -163,6 +172,7 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
+  roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 4 },
   eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4, marginTop: 4 },
   title: { fontSize: 25, fontWeight: '800', letterSpacing: -0.7, marginBottom: 17 },
   profileCard: { borderWidth: 1, borderRadius: 20, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 23 },

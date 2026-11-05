@@ -35,6 +35,9 @@ function RootLayoutNav() {
       <Stack.Screen name="verify" />
       <Stack.Screen name="register" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="register-provider" />
+      <Stack.Screen name="my-services" />
+      <Stack.Screen name="add-service" />
       <Stack.Screen name="location" options={{ presentation: 'modal' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="service/[id]" />

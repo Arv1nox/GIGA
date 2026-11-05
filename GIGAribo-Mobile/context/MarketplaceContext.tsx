@@ -1,6 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { getService, type CheckoutDetails, type Profile, type ServiceRequest } from '@/constants/marketplace';
+import {
+  categories,
+  getAllServices,
+  getService,
+  setCustomMarketplace,
+  type CheckoutDetails,
+  type Profile,
+  type Provider,
+  type Service,
+  type ServiceRequest,
+} from '@/constants/marketplace';
 import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
@@ -9,10 +19,33 @@ type MarketplaceState = {
   requests: ServiceRequest[];
   profile: Profile;
   notificationsEnabled: boolean;
+  /** Services providers added from inside the app (saved on this device). */
+  customServices: Service[];
+  customProviders: Provider[];
+};
+
+export type NewServiceInput = {
+  title: string;
+  subtitle: string;
+  category: string;
+  price: number;
+  area: string;
+  serviceAreas: string[];
+};
+
+export type ProviderOwner = {
+  id: string;
+  businessName: string;
+  about?: string;
+  area?: string;
 };
 
 type MarketplaceContextValue = MarketplaceState & {
   hydrated: boolean;
+  /** Built-in sample services plus services providers added. */
+  allServices: Service[];
+  addCustomService: (input: NewServiceInput, owner: ProviderOwner) => Promise<Service>;
+  removeCustomService: (serviceId: string) => Promise<void>;
   setLocation: (location: string) => void;
   toggleFavorite: (serviceId: string) => void;
   addRequest: (serviceId: string, serviceArea?: string) => Promise<void>;
@@ -32,6 +65,8 @@ const initialState: MarketplaceState = {
   requests: [],
   profile: emptyProfile,
   notificationsEnabled: true,
+  customServices: [],
+  customProviders: [],
 };
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null);
@@ -57,7 +92,13 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
                   : 'Pending checkout' as const,
             }))
           : [];
-        setState({ ...initialState, ...saved, requests });
+        setState({
+          ...initialState,
+          ...saved,
+          requests,
+          customServices: Array.isArray(saved.customServices) ? saved.customServices : [],
+          customProviders: Array.isArray(saved.customProviders) ? saved.customProviders : [],
+        });
       })
       .catch(() => {
         if (active) setState(initialState);
@@ -75,9 +116,63 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
+  // Keep the lookup helpers in constants/marketplace.ts aware of services providers added.
+  setCustomMarketplace(state.customServices, state.customProviders);
+
   const value = useMemo<MarketplaceContextValue>(() => ({
     ...state,
     hydrated,
+    allServices: getAllServices(),
+    addCustomService: async (input, owner) => {
+      const businessName = owner.businessName.trim();
+      if (!businessName) throw new Error('Your provider profile needs a business name.');
+      const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const service: Service = {
+        id: `custom-${slug(input.title) || 'service'}-${Date.now().toString(36)}`,
+        title: input.title,
+        subtitle: input.subtitle,
+        category: input.category,
+        price: input.price,
+        provider: businessName,
+        rating: 0,
+        reviews: 0,
+        image: input.category === 'cleaning' ? 'cleaning' : 'repair',
+        area: input.area,
+        serviceAreas: input.serviceAreas,
+        ownerId: owner.id,
+      };
+      const hasProfile = [...state.customProviders].some((item) => item.name === businessName);
+      const icon = categories.find((item) => item.id === input.category)?.icon ?? 'briefcase';
+      const profileCard: Provider = {
+        id: slug(businessName) || `provider-${owner.id.slice(0, 8)}`,
+        name: businessName,
+        icon,
+        tagline: input.subtitle || input.title,
+        about: owner.about?.trim() || `${businessName} offers home services in ${input.area}.`,
+        area: input.area,
+        yearsActive: 0,
+        responseTime: 'Within a day',
+      };
+      const next: MarketplaceState = {
+        ...state,
+        customServices: [service, ...state.customServices],
+        customProviders: hasProfile ? state.customProviders : [profileCard, ...state.customProviders],
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setState(next);
+      return service;
+    },
+    removeCustomService: async (serviceId) => {
+      if (!state.customServices.some((item) => item.id === serviceId)) throw new Error('Service not found.');
+      const next: MarketplaceState = {
+        ...state,
+        customServices: state.customServices.filter((item) => item.id !== serviceId),
+        favorites: state.favorites.filter((id) => id !== serviceId),
+        requests: state.requests.filter((request) => request.serviceId !== serviceId),
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setState(next);
+    },
     setLocation: (location) => save({ ...state, location }),
     toggleFavorite: (serviceId) => {
       const favorites = state.favorites.includes(serviceId)

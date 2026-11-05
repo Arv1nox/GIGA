@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { ActionButton, BrandMark, FormField, IconButton, Page } from '@/components/MarketplaceUI';
 import { useMarketplace } from '@/context/MarketplaceContext';
@@ -44,7 +43,10 @@ export default function LoginScreen() {
         : profile.name,
       email: data.user?.email ?? email.trim(),
     });
-    if (hasRedirect && router.canGoBack()) {
+    const isProvider = data.user?.user_metadata?.role === 'provider';
+    if (isProvider && !hasRedirect) {
+      router.replace('/my-services'); // providers start on their services
+    } else if (hasRedirect && router.canGoBack()) {
       router.back(); // return to the screen that sent them here
     } else {
       router.replace((hasRedirect ? redirect : '/(tabs)/shop') as Href);
@@ -69,18 +71,6 @@ export default function LoginScreen() {
             <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Don't have an account?</Text>
             <Pressable onPress={() => router.push('/register')}><Text style={{ color: colors.primary, fontWeight: '800', fontSize: 13 }}> Sign up</Text></Pressable>
           </View>
-          <Pressable
-            onPress={() => router.push('/register-provider')}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.providerCta, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={[styles.providerIcon, { backgroundColor: colors.accent }]}><Feather name="briefcase" size={17} color={colors.primary} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: '800' }}>Want to offer a service?</Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 2 }}>Register as a service provider</Text>
-            </View>
-            <Feather name="chevron-right" size={17} color={colors.mutedForeground} />
-          </Pressable>
         </View>
       </KeyboardAwareScrollViewCompat>
     </Page>
@@ -95,6 +85,4 @@ const styles = StyleSheet.create({
   forgot: { alignSelf: 'flex-end', marginTop: -8 },
   bottom: { marginTop: 'auto', gap: 14 },
   signup: { flexDirection: 'row', justifyContent: 'center' },
-  providerCta: { flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderRadius: 16, padding: 12 },
-  providerIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
 });
