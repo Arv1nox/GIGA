@@ -10,7 +10,7 @@ import { formatPrice } from '@/constants/marketplace';
 import type { Booking, BookingStatus } from '@/lib/remoteBookings';
 import { ActionButton, EmptyState, IconButton, Page, uiStyles } from '@/components/MarketplaceUI';
 
-type Filter = 'all' | 'new' | 'confirmed' | 'completed';
+type Filter = 'active' | 'new' | 'confirmed' | 'history';
 
 const LIVE = '#2E9E6B';
 const WARN = '#F3A64C';
@@ -42,7 +42,7 @@ export default function BookingsScreen() {
   const colors = useColors();
   const { isProvider, loading } = useAuth();
   const { bookings, refreshBookings, markBookingsSeen, updateBookingStatus } = useMarketplace();
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>('active');
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -70,18 +70,22 @@ export default function BookingsScreen() {
     );
   }
 
+  // Finished bookings (completed, declined or cancelled) move out of the active list into History.
+  const isDone = (item: Booking) => item.status === 'completed' || item.status === 'declined' || item.status === 'cancelled';
   const counts: Record<Filter, number> = {
-    all: bookings.length,
+    active: bookings.filter((item) => !isDone(item)).length,
     new: bookings.filter((item) => item.status === 'new').length,
     confirmed: bookings.filter((item) => item.status === 'confirmed').length,
-    completed: bookings.filter((item) => item.status === 'completed').length,
+    history: bookings.filter(isDone).length,
   };
-  const visible = filter === 'all' ? bookings : bookings.filter((item) => item.status === filter);
+  const visible = filter === 'history'
+    ? bookings.filter(isDone)
+    : filter === 'active' ? bookings.filter((item) => !isDone(item)) : bookings.filter((item) => item.status === filter);
   const filters: { key: Filter; label: string }[] = [
-    { key: 'all', label: 'All' },
+    { key: 'active', label: 'Active' },
     { key: 'new', label: 'New' },
     { key: 'confirmed', label: 'Accepted' },
-    { key: 'completed', label: 'Completed' },
+    { key: 'history', label: 'History' },
   ];
 
   async function answer(booking: Booking, status: BookingStatus) {
@@ -123,7 +127,7 @@ export default function BookingsScreen() {
         </View>
         <Text style={[styles.title, { color: colors.foreground }]}>Bookings</Text>
         <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 2 }}>
-          {counts.new > 0 ? `${counts.new} waiting for your answer.` : 'Customers who book your services show up here.'}
+          {counts.new > 0 ? `${counts.new} waiting for your answer.` : 'Completed bookings move to History.'}
         </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
@@ -148,10 +152,12 @@ export default function BookingsScreen() {
         {visible.length === 0 ? (
           <EmptyState
             icon="calendar"
-            title={bookings.length === 0 ? 'No bookings yet' : 'Nothing here'}
-            message={bookings.length === 0 ? 'When a customer books one of your services you will get a notification and it will appear here.' : 'Try another filter.'}
-            action={bookings.length === 0 ? 'Add a service' : 'Show all'}
-            onAction={() => (bookings.length === 0 ? router.push('/add-service') : setFilter('all'))}
+            title={bookings.length === 0 ? 'No bookings yet' : filter === 'history' ? 'No past bookings yet' : 'Nothing here'}
+            message={bookings.length === 0
+              ? 'When a customer books one of your services you will get a notification and it will appear here.'
+              : filter === 'history' ? 'Completed, declined and cancelled bookings are kept here.' : 'Try another filter.'}
+            action={bookings.length === 0 ? 'Add a service' : 'Show active'}
+            onAction={() => (bookings.length === 0 ? router.push('/add-service') : setFilter('active'))}
           />
         ) : (
           <View style={{ gap: 12 }}>

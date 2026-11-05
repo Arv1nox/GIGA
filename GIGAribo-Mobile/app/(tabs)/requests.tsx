@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
@@ -9,10 +9,27 @@ import { getService, formatPrice, type ServiceRequest } from '@/constants/market
 import { ActionButton, EmptyState, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
 import { RequestCheckout } from '@/components/RequestCheckout';
 
+type View_ = 'active' | 'history';
+
+/** A request is "past" once it was cancelled, or the provider completed or declined it. */
+function isPastRequest(request: ServiceRequest) {
+  if (request.status === 'Cancelled (demo)') return true;
+  return request.status === 'Placed (demo)' && ['completed', 'declined', 'cancelled'].includes(request.providerStatus ?? '');
+}
+
 export default function RequestsScreen() {
   const colors = useColors();
   const { requests, removeRequest, checkoutRequest, cancelRequest, hydrated } = useMarketplace();
   const { session, loading: authLoading } = useAuth();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [view, setView] = useState<View_>(params.tab === 'history' ? 'history' : 'active');
+  // Tabs stay mounted, so follow the tab asked for (e.g. from the "Booking completed" pop-up).
+  useEffect(() => {
+    if (params.tab === 'history') setView('history');
+  }, [params.tab]);
+  const activeRequests = requests.filter((request) => !isPastRequest(request));
+  const pastRequests = requests.filter(isPastRequest);
+  const shown = view === 'history' ? pastRequests : activeRequests;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'checkout' | 'success' | 'cancelConfirm' | 'removeConfirm' | 'cancelled'>('checkout');
   const activeRequest = requests.find((request) => request.id === activeId);
@@ -42,22 +59,92 @@ export default function RequestsScreen() {
           </View>
           <IconButton icon="plus" accessibilityLabel="Browse services" onPress={() => router.push('/(tabs)/explore')} />
         </View>
+        {hydrated && requests.length > 0 ? (
+          <View style={[styles.segment, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {([['active', 'Active', activeRequests.length], ['history', 'History', pastRequests.length]] as const).map(([key, label, count]) => {
+              const selected = view === key;
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setView(key)}
+                  style={[styles.segmentItem, { backgroundColor: selected ? colors.accent : 'transparent' }]}
+                >
+                  <Text style={{ color: selected ? colors.primary : colors.mutedForeground, fontSize: 12, fontWeight: '800' }}>{label} · {count}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
         {!hydrated ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
             <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Loading requests…</Text>
           </View>
-        ) : requests.length === 0 ? (
-          <EmptyState
-            icon="clipboard"
-            title="No requests yet"
-            message="Add a service, then check out here to schedule a demo request."
-            action="Explore services"
-            onAction={() => router.push('/(tabs)/explore')}
-          />
+        ) : shown.length === 0 ? (
+          view === 'history' ? (
+            <EmptyState
+              icon="clock"
+              title="No past bookings yet"
+              message="Completed, declined and cancelled bookings are kept here."
+              action="See active requests"
+              onAction={() => setView('active')}
+            />
+          ) : (
+            <EmptyState
+              icon="clipboard"
+              title={requests.length === 0 ? 'No requests yet' : 'No active requests'}
+              message={requests.length === 0 ? 'Add a service, then check out here to schedule a demo request.' : 'Your finished bookings are in History.'}
+              action="Explore services"
+              onAction={() => router.push('/(tabs)/explore')}
+            />
+          )
+        ) : view === 'history' ? (
+          <View style={{ gap: 12 }}>
+            {pastRequests.map((request) => {
+              const service = getService(request.serviceId);
+              if (!service) return null;
+              const a = request.providerStatus;
+              const info = request.status === 'Cancelled (demo)' || a === 'cancelled'
+                ? { label: 'Cancelled', color: colors.destructive }
+                : a === 'declined' ? { label: 'Declined by provider', color: colors.destructive } : { label: 'Completed', color: '#2E9E6B' };
+              const when = request.checkout
+                ? `${new Date(`${request.checkout.scheduledDate}T12:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })} · ${request.checkout.timeSlot}`
+                : new Date(request.createdAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+              return (
+                <View key={request.id} style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={() => router.push({ pathname: '/service/[id]', params: { id: service.id } })}>
+                    <ServiceImage service={service} style={styles.historyPhoto} />
+                  </Pressable>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text numberOfLines={1} style={[styles.serviceName, { color: colors.foreground }]}>{service.title}</Text>
+                    <Text numberOfLines={1} style={[styles.provider, { color: colors.mutedForeground, marginTop: 0 }]}>{service.provider}</Text>
+                    <View style={styles.statusLine}>
+                      <View style={[styles.statusDot, { backgroundColor: info.color }]} />
+                      <Text style={[styles.statusText, { color: info.color }]}>{info.label}</Text>
+                    </View>
+                    <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 11 }}>{when}</Text>
+                    <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: '800' }}>{formatPrice(request.checkout?.total ?? service.price)}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <IconButton icon="trash-2" size={17} accessibilityLabel="Remove from history" onPress={() => confirmRemove(request)} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Book ${service.title} again`}
+                      onPress={() => router.push({ pathname: '/service/[id]', params: { id: service.id } })}
+                      style={[styles.again, { backgroundColor: colors.accent }]}
+                    >
+                      <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>Book again</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         ) : (
           <View style={{ gap: 13 }}>
-            {requests.map((request) => {
+            {activeRequests.map((request) => {
               const service = getService(request.serviceId);
               if (!service) return null;
               // Once the provider answers, show their answer instead of the plain "Placed" status.
@@ -188,6 +275,11 @@ const styles = StyleSheet.create({
   scheduleText: { fontSize: 11, fontWeight: '600' },
   cancelLink: { alignSelf: 'flex-start', paddingVertical: 6 },
   cancelText: { fontSize: 11, fontWeight: '700' },
+  segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 16, padding: 4, marginBottom: 16 },
+  segmentItem: { flex: 1, alignItems: 'center', borderRadius: 12, paddingVertical: 9 },
+  historyCard: { flexDirection: 'row', alignItems: 'stretch', gap: 12, borderWidth: 1, borderRadius: 18, padding: 10 },
+  historyPhoto: { width: 84, height: 96, borderRadius: 14 },
+  again: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 7 },
   loading: { minHeight: 250, justifyContent: 'center', alignItems: 'center', gap: 10 },
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 13, borderRadius: 15, marginTop: 14 },
   tipText: { flex: 1, fontSize: 11, lineHeight: 16 },

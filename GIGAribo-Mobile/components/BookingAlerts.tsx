@@ -35,7 +35,7 @@ export function BookingAlerts() {
         trigger={requestAlert ? requestAlert.id : null}
         title={answerTitle}
         detail={answerDetail}
-        onPress={() => router.push('/(tabs)/requests')}
+        onPress={() => router.push(requestAlert?.status === 'completed' ? { pathname: '/(tabs)/requests', params: { tab: 'history' } } : '/(tabs)/requests')}
         duration={5000}
       />
     </>
