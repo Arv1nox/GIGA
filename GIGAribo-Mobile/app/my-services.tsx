@@ -280,9 +280,10 @@ export default function MyServicesScreen() {
                         accessibilityLabel={`Edit ${service.title}`}
                         hitSlop={8}
                         onPress={() => router.push({ pathname: '/add-service', params: { id: service.id } })}
-                        style={[styles.actionBtn, { backgroundColor: colors.accent }]}
+                        style={[styles.editBtn, { backgroundColor: colors.primary }]}
                       >
-                        <Feather name="edit-2" size={15} color={colors.primary} />
+                        <Feather name="edit-2" size={13} color="#FFFFFF" />
+                        <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>Edit</Text>
                       </Pressable>
                       <Pressable
                         accessibilityRole="button"
@@ -326,6 +327,7 @@ const styles = StyleSheet.create({
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   syncTag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   actions: { flexDirection: 'row', gap: 8 },
+  editBtn: { height: 34, borderRadius: 12, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 6 },
   actionBtn: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   fabWrap: { position: 'absolute', right: 20, bottom: 26 },
   fab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, height: 48, borderRadius: 24, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },

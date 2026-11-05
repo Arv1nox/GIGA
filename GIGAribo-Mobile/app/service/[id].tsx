@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { Alert } from '@/lib/alert';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
+import { useAuth } from '@/context/AuthContext';
 import { categories, formatPrice, getProvider, getService } from '@/constants/marketplace';
 import { ActionButton, HeartButton, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
 
@@ -14,6 +15,7 @@ export default function ServiceDetailScreen() {
   const { favorites, toggleFavorite, addRequest, hydrated, customServices } = useMarketplace();
   // customServices is read so this screen re-renders when the shared list refreshes.
   void customServices;
+  const { session } = useAuth();
   const service = getService(id);
   const [area, setArea] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -46,6 +48,8 @@ export default function ServiceDetailScreen() {
   const category = categories.find((item) => item.id === service.category);
   const provider = getProvider(service.provider);
   const paused = service.active === false;
+  // Only the provider who added a service can edit it.
+  const isOwner = Boolean(session && service.ownerId && service.ownerId === session.user.id);
   const chosenArea = area ?? (service.serviceAreas.length === 1 ? service.serviceAreas[0] : null);
 
   async function addToRequests() {
@@ -96,6 +100,21 @@ export default function ServiceDetailScreen() {
             </View>
           </View>
         </View>
+
+        {isOwner ? (
+          <View style={[styles.ownerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: '800' }}>This is your service</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 2 }}>Update the photo, price, areas or details.</Text>
+            </View>
+            <ActionButton
+              label="Edit service"
+              icon="edit-2"
+              onPress={() => router.push({ pathname: '/add-service', params: { id: service.id } })}
+              style={styles.ownerButton}
+            />
+          </View>
+        ) : null}
 
         {paused ? (
           <View style={[styles.notice, { backgroundColor: colors.accent }]}>
@@ -166,6 +185,8 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   price: { fontSize: 18, fontWeight: '800' },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  ownerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 16, padding: 12, marginTop: 14 },
+  ownerButton: { minHeight: 40, paddingHorizontal: 14 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, borderRadius: 14, marginTop: 14 },
   providerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 18, padding: 12, marginTop: 18 },
   providerIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
