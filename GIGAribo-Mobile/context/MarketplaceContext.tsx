@@ -11,7 +11,7 @@ import {
   type ServiceRequest,
 } from '@/constants/marketplace';
 import { useAuth } from '@/context/AuthContext';
-import { deleteRemoteService, fetchRemoteServices, insertRemoteService, updateRemoteService } from '@/lib/remoteServices';
+import { deleteRemoteService, fetchRemoteServices, insertRemoteService, updateRemoteService, uploadServiceImage } from '@/lib/remoteServices';
 import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
@@ -31,6 +31,10 @@ export type NewServiceInput = {
   price: number;
   area: string;
   serviceAreas: string[];
+  /** Optional photo: a file on this device (just picked) or an existing web URL. `null` removes it. */
+  image?: string | null;
+  /** Mime type of a freshly picked photo. */
+  imageType?: string | null;
 };
 
 export type ProviderOwner = {
@@ -70,6 +74,17 @@ const initialState: MarketplaceState = {
   notificationsEnabled: true,
   customServices: [],
 };
+
+/** Turns a freshly picked photo into a shared web URL. If the upload fails the local file is kept so the provider still sees it. */
+async function resolveImage(image: string | null | undefined, ownerId: string, mimeType?: string | null): Promise<string | undefined> {
+  if (!image) return undefined;
+  if (/^https?:\/\//.test(image)) return image;
+  try {
+    return await uploadServiceImage(image, ownerId, mimeType);
+  } catch {
+    return image;
+  }
+}
 
 const MarketplaceContext = createContext<MarketplaceContextValue | null>(null);
 
@@ -159,6 +174,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       const businessName = owner.businessName.trim();
       if (!businessName) throw new Error('Your provider profile needs a business name.');
       const slug = input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service';
+      const imageUrl = await resolveImage(input.image, owner.id, input.imageType);
       const service: Service = {
         id: `custom-${slug}-${Date.now().toString(36)}`,
         title: input.title,
@@ -175,6 +191,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         ownerId: owner.id,
         active: true,
         synced: false,
+        imageUrl,
       };
       // Try the shared database first so every customer can see it; fall back to this device only.
       let synced = false;
@@ -193,7 +210,11 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     updateCustomService: async (serviceId, changes) => {
       const current = state.customServices.find((item) => item.id === serviceId);
       if (!current) throw new Error('Service not found.');
-      const updated: Service = { ...current, ...changes };
+      const { image, imageType, ...fields } = changes;
+      // Upload a newly picked photo; keep the current one unless the provider changed or removed it.
+      const imageSource = 'image' in changes ? image : current.imageUrl;
+      const imageUrl = await resolveImage(imageSource, current.ownerId ?? '', imageType);
+      const updated: Service = { ...current, ...fields, imageUrl };
       let synced = Boolean(current.synced);
       if (current.synced) {
         try {

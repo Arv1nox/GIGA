@@ -25,7 +25,15 @@ import { FocusedPhoto, categoryFocus, serviceFocus } from '@/components/FocusedP
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
 /** A service's photo, cropped so the subject stays centered (falls back to the illustration). */
-function ServicePhoto({ serviceId, style }: { serviceId: string; style?: StyleProp<ViewStyle> }) {
+function ServicePhoto({ serviceId, imageUrl, style }: { serviceId: string; imageUrl?: string; style?: StyleProp<ViewStyle> }) {
+  // A photo the provider added wins over the built-in illustration.
+  if (imageUrl) {
+    return (
+      <View style={[{ overflow: 'hidden' }, style]}>
+        <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      </View>
+    );
+  }
   const photo = servicePhotos[serviceId];
   if (photo) return <FocusedPhoto source={photo} focus={serviceFocus[serviceId]} style={style} />;
   return <ServiceArt serviceId={serviceId} style={style} />;
@@ -293,6 +301,7 @@ export function ServiceImage({
   return (
     <ServicePhoto
       serviceId={service.id}
+      imageUrl={service.imageUrl}
       style={[styles.serviceImage, style, imageStyle as StyleProp<ViewStyle>]}
     />
   );
@@ -316,7 +325,7 @@ export function ServiceCard({
     <View style={[styles.serviceCard, { width, backgroundColor: colors.card, borderColor: colors.border }]}>
       <View>
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-          <ServicePhoto serviceId={service.id} style={styles.serviceCardImage} />
+          <ServicePhoto serviceId={service.id} imageUrl={service.imageUrl} style={styles.serviceCardImage} />
         </Pressable>
         {service.rating >= 4.9 ? (
           <View style={[styles.topBadge, { backgroundColor: colors.card }]} pointerEvents="none">
@@ -364,7 +373,7 @@ export function ServiceRow({
   return (
     <View style={[styles.serviceRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
-        <ServicePhoto serviceId={service.id} style={styles.serviceRowImage} />
+        <ServicePhoto serviceId={service.id} imageUrl={service.imageUrl} style={styles.serviceRowImage} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress} style={styles.serviceRowCopy}>
         <Text numberOfLines={1} style={[styles.serviceTitle, { color: colors.foreground }]}>{service.title}</Text>

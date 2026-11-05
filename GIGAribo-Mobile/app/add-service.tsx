@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/lib/alert';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { ActionButton, BrandMark, FormField, IconButton, Page } from '@/components/MarketplaceUI';
@@ -29,6 +30,10 @@ export default function AddServiceScreen() {
   const [price, setPrice] = useState(editing ? String(editing.price) : '');
   const [area, setArea] = useState(editing?.area ?? String(meta.base_area ?? 'Naga City'));
   const [areas, setAreas] = useState(editing ? editing.serviceAreas.join(', ') : '');
+  // Optional photo: starts as the saved one when editing. `imageChanged` is true once a new one is picked or it is removed.
+  const [image, setImage] = useState<string | null>(editing?.imageUrl ?? null);
+  const [imageType, setImageType] = useState<string | null>(null);
+  const [imageChanged, setImageChanged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const subtitleRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
@@ -53,6 +58,29 @@ export default function AddServiceScreen() {
         </View>
       </Page>
     );
+  }
+
+  async function pickImage() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.6,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      setImage(result.assets[0].uri);
+      setImageType(result.assets[0].mimeType ?? null);
+      setImageChanged(true);
+    } catch {
+      Alert.alert('Could not open photos', 'Allow photo access in your settings and try again.');
+    }
+  }
+
+  function removeImage() {
+    setImage(null);
+    setImageType(null);
+    setImageChanged(true);
   }
 
   const amount = Number(price.replace(/[^\d.]/g, ''));
@@ -93,6 +121,8 @@ export default function AddServiceScreen() {
       price: Math.round(amount),
       area: cleanArea,
       serviceAreas: serviceAreas.length > 0 ? serviceAreas : [cleanArea],
+      // Only send the photo when it was added or changed (an untouched saved photo stays as it is).
+      ...(!editing || imageChanged ? { image, imageType } : {}),
     };
 
     setIsSubmitting(true);
@@ -100,11 +130,14 @@ export default function AddServiceScreen() {
       const result = editing
         ? await updateCustomService(editing.id, input)
         : await addCustomService(input, { id: session.user.id, businessName, about: String(meta.about ?? '') });
-      const message = result.synced
+      const photoNote = image && imageChanged && !/^https?:\/\//.test(('service' in result ? result.service.imageUrl : undefined) ?? '')
+        ? ' The photo could not be uploaded, so only you can see it for now.'
+        : '';
+      const message = (result.synced
         ? editing
           ? `"${cleanTitle}" was updated for customers.`
           : `"${cleanTitle}" is now listed for customers to find.`
-        : `"${cleanTitle}" was saved on this phone only. Customers can't see it until the shared services table is set up in Supabase (supabase/services.sql). You can share it later from My services.`;
+        : `"${cleanTitle}" was saved on this phone only. Customers can't see it until the shared services table is set up in Supabase (supabase/services.sql). You can share it later from My services.`) + photoNote;
       Alert.alert(editing ? 'Service updated' : 'Service added', message, [{ text: 'OK', onPress: () => router.replace('/my-services') }]);
     } catch (error) {
       Alert.alert('Could not save service', error instanceof Error ? error.message : 'Please try again.');
@@ -131,6 +164,36 @@ export default function AddServiceScreen() {
             <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 12 }}>{businessName || 'Your business'} · {area.trim() || 'Your area'}</Text>
           </View>
           <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: '800' }}>{Number.isFinite(amount) && amount > 0 ? formatPrice(Math.round(amount)) : '₱—'}</Text>
+        </View>
+
+        <View style={{ gap: 9 }}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>Photo (optional)</Text>
+          {image ? (
+            <View style={[styles.photoBox, { borderColor: colors.border }]}>
+              <Image source={{ uri: image }} style={styles.photo} resizeMode="cover" />
+              <View style={styles.photoActions}>
+                <Pressable accessibilityRole="button" onPress={() => void pickImage()} style={[styles.photoButton, { backgroundColor: colors.card }]}>
+                  <Feather name="refresh-cw" size={13} color={colors.foreground} />
+                  <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: '700' }}>Change</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={removeImage} style={[styles.photoButton, { backgroundColor: colors.card }]}>
+                  <Feather name="trash-2" size={13} color={colors.destructive} />
+                  <Text style={{ color: colors.destructive, fontSize: 12, fontWeight: '700' }}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a photo"
+              onPress={() => void pickImage()}
+              style={[styles.photoEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Feather name="image" size={22} color={colors.primary} />
+              <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: '700' }}>Add a photo</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>Without one, a simple illustration is shown.</Text>
+            </Pressable>
+          )}
         </View>
 
         <FormField
@@ -245,6 +308,11 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 9 },
   priceChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 11, paddingVertical: 6 },
+  photoEmpty: { alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderStyle: 'dashed', borderRadius: 16, paddingVertical: 22 },
+  photoBox: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
+  photo: { width: '100%', aspectRatio: 4 / 3 },
+  photoActions: { position: 'absolute', right: 10, bottom: 10, flexDirection: 'row', gap: 8 },
+  photoButton: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 7 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 16, padding: 12 },
   previewIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

@@ -27,6 +27,8 @@ export type Service = {
   providerAbout?: string;
   /** True once the service is saved in the shared database, so every customer can see it. */
   synced?: boolean;
+  /** Optional photo the provider added. A web URL once uploaded, or a file on this device if the upload failed. */
+  imageUrl?: string;
 };
 
 export type Provider = {
