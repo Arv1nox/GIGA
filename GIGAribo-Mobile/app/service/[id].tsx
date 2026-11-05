@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { getService, formatPrice } from '@/constants/marketplace';
+import { getService, getProvider, formatPrice } from '@/constants/marketplace';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { ActionButton, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
 import { FocusedPhoto, serviceFocus } from '@/components/FocusedPhoto';
@@ -41,6 +41,7 @@ export default function ServiceDetailsScreen() {
   }
 
   const favorite = favorites.includes(service.id);
+  const provider = getProvider(service.provider);
   // Cover photo first, then any extra gallery photos. Fewer than two photos means no swiping and no dots.
   const extraPhotos = serviceGallery[service.id] ?? [];
   const slides = extraPhotos.length > 0 && servicePhotos[service.id] ? [servicePhotos[service.id], ...extraPhotos] : [];
@@ -98,14 +99,21 @@ export default function ServiceDetailsScreen() {
             <Text style={[styles.price, { color: colors.foreground }]}>{formatPrice(service.price)}</Text>
           </View>
 
-          <View style={styles.providerLine}>
-            <View style={[styles.providerIcon, { backgroundColor: colors.accent }]}><Feather name="home" size={17} color={colors.primary} /></View>
+          <Pressable
+            onPress={() => { if (provider) router.push({ pathname: '/provider/[id]', params: { id: provider.id } }); }}
+            disabled={!provider}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${service.provider} profile`}
+            style={({ pressed }) => [styles.providerLine, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <View style={[styles.providerIcon, { backgroundColor: colors.accent }]}><Feather name={(provider?.icon ?? 'home') as React.ComponentProps<typeof Feather>['name']} size={17} color={colors.primary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.providerName, { color: colors.foreground }]}>{service.provider}</Text>
-              <Text style={[styles.providerMeta, { color: colors.mutedForeground }]}>Sample service listing</Text>
+              <Text style={[styles.providerMeta, { color: colors.mutedForeground }]}>{provider ? 'View provider profile' : 'Sample service listing'}</Text>
             </View>
             <View style={styles.rating}><Feather name="star" size={14} color="#F3A64C" /><Text style={[styles.ratingText, { color: colors.foreground }]}>{service.rating.toFixed(1)} ({service.reviews})</Text></View>
-          </View>
+            {provider ? <Feather name="chevron-right" size={16} color={colors.mutedForeground} /> : null}
+          </Pressable>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.section}>

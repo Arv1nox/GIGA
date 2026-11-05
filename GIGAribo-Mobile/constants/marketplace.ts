@@ -21,6 +21,19 @@ export type Service = {
   serviceAreas: string[];
 };
 
+export type Provider = {
+  id: string;
+  name: string;
+  /** Feather icon name shown on the profile. */
+  icon: string;
+  tagline: string;
+  about: string;
+  /** Main place the provider is based. */
+  area: string;
+  yearsActive: number;
+  responseTime: string;
+};
+
 export type ServiceRequest = {
   id: string;
   serviceId: string;
@@ -201,6 +214,135 @@ export const services: Service[] = [
 
 export function getService(id: string | undefined) {
   return services.find((service) => service.id === id);
+}
+
+export const providers: Provider[] = [
+  {
+    id: 'bicol-roof-pros',
+    name: 'Bicol Roof Pros',
+    icon: 'home',
+    tagline: 'Roof repair and installation',
+    about: 'A local roofing crew handling leak repairs, re-roofing and new installations for homes in and around Naga City.',
+    area: 'Naga City',
+    yearsActive: 8,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'naga-pipe-experts',
+    name: 'Naga Pipe Experts',
+    icon: 'droplet',
+    tagline: 'Fast plumbing repair',
+    about: 'Plumbers who fix leaking pipes, clogged drains and faulty fixtures, with quick visits across Naga City.',
+    area: 'Naga City',
+    yearsActive: 6,
+    responseTime: 'Within a few hours',
+  },
+  {
+    id: 'happy-housekeepers',
+    name: 'Happy Housekeepers',
+    icon: 'wind',
+    tagline: 'Home and deep cleaning',
+    about: 'A friendly cleaning team for regular house cleaning and detailed deep cleans, bringing their own supplies and equipment.',
+    area: 'Naga City',
+    yearsActive: 5,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'mrs-pea-cleaning',
+    name: 'Mrs. Pea Cleaning',
+    icon: 'wind',
+    tagline: 'Bathroom cleaning and sanitizing',
+    about: 'Specialists in bathroom cleaning, from tiles and glass to fixtures, leaving the space fresh and sanitized.',
+    area: 'Naga City',
+    yearsActive: 4,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'green-bicol-gardens',
+    name: 'Green Bicol Gardens',
+    icon: 'sun',
+    tagline: 'Lawn and garden care',
+    about: 'Garden care for homes around Pili and nearby towns: mowing, trimming, planting and regular upkeep.',
+    area: 'Pili',
+    yearsActive: 7,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'naga-homeworks',
+    name: 'Naga HomeWorks',
+    icon: 'zap',
+    tagline: 'Home electrical installation and repair',
+    about: 'Electricians for wiring, outlets, lighting and repairs in homes across Naga City.',
+    area: 'Naga City',
+    yearsActive: 9,
+    responseTime: 'Within a few hours',
+  },
+  {
+    id: 'bicol-home-care-clinic',
+    name: 'Bicol Home Care Clinic',
+    icon: 'heart',
+    tagline: 'Doctor consultations at home',
+    about: 'General consultations and advice from a doctor, brought to your home so you can skip the clinic queue.',
+    area: 'Naga City',
+    yearsActive: 5,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'naga-wellness-partners',
+    name: 'Naga Wellness Partners',
+    icon: 'heart',
+    tagline: 'Home health check-ups',
+    about: 'Basic health check-ups at home, including vitals, blood pressure and sugar readings.',
+    area: 'Naga City',
+    yearsActive: 3,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'bicol-feast-catering',
+    name: 'Bicol Feast Catering',
+    icon: 'coffee',
+    tagline: 'Buffet catering for parties and events',
+    about: 'Full buffet catering for birthdays, family gatherings and small events, with set-up included.',
+    area: 'Naga City',
+    yearsActive: 10,
+    responseTime: 'Within a day',
+  },
+  {
+    id: 'naga-table-catering',
+    name: 'Naga Table Catering',
+    icon: 'coffee',
+    tagline: 'Snack trays and finger food',
+    about: 'Snack platters and finger-food trays for small gatherings, meetings and celebrations.',
+    area: 'Naga City',
+    yearsActive: 4,
+    responseTime: 'Within a day',
+  },
+];
+
+export function getProvider(name: string | undefined) {
+  return providers.find((provider) => provider.name === name);
+}
+
+export function getProviderById(id: string | undefined) {
+  return providers.find((provider) => provider.id === id);
+}
+
+export function getProviderServices(providerName: string) {
+  return services.filter((service) => service.provider === providerName);
+}
+
+/** Overall rating and review count, worked out from the provider's services. */
+export function getProviderStats(providerName: string) {
+  const list = getProviderServices(providerName);
+  const reviews = list.reduce((sum, service) => sum + service.reviews, 0);
+  const rating = reviews ? list.reduce((sum, service) => sum + service.rating * service.reviews, 0) / reviews : 0;
+  return { rating, reviews, services: list.length };
+}
+
+/** Every location where the provider's services are offered. */
+export function getProviderLocations(providerName: string) {
+  const all = getProviderServices(providerName).flatMap((service) => service.serviceAreas);
+  return all.filter((area, index) => all.indexOf(area) === index);
 }
 
 export function formatPrice(amount: number) {
