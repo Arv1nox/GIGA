@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   Platform,
@@ -355,18 +355,39 @@ export function FormField({
   label,
   style,
   inputRef,
+  secureTextEntry,
   ...props
 }: TextInputProps & { label: string; style?: StyleProp<ViewStyle>; inputRef?: React.Ref<TextInput> }) {
   const colors = useColors();
+  const [hidden, setHidden] = useState(true);
+  const isPassword = !!secureTextEntry;
   return (
     <View style={[{ gap: 7 }, style]}>
       <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <TextInput
-        ref={inputRef}
-        placeholderTextColor={colors.mutedForeground}
-        style={[styles.fieldInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]}
-        {...props}
-      />
+      <View style={styles.fieldWrap}>
+        <TextInput
+          ref={inputRef}
+          placeholderTextColor={colors.mutedForeground}
+          secureTextEntry={isPassword && hidden}
+          style={[
+            styles.fieldInput,
+            { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border },
+            isPassword && styles.fieldInputWithToggle,
+          ]}
+          {...props}
+        />
+        {isPassword ? (
+          <Pressable
+            onPress={() => setHidden((v) => !v)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+            style={styles.fieldToggle}
+          >
+            <Feather name={hidden ? 'eye' : 'eye-off'} size={20} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -459,5 +480,8 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
   emptyMessage: { fontSize: 13, textAlign: 'center', lineHeight: 19, maxWidth: 260 },
   fieldLabel: { fontSize: 12, fontWeight: '700' },
+  fieldWrap: { justifyContent: 'center' },
   fieldInput: { minHeight: 50, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, fontSize: 15 },
+  fieldInputWithToggle: { paddingRight: 48 },
+  fieldToggle: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, alignItems: 'center', justifyContent: 'center' },
 });
