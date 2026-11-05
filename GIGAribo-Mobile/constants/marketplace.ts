@@ -52,6 +52,8 @@ export type ServiceRequest = {
   createdAt: string;
   status: 'Pending checkout' | 'Placed (demo)' | 'Cancelled (demo)';
   checkout?: CheckoutDetails & { total: number };
+  /** True when the provider was sent this booking (only for services added by providers in the app). */
+  providerNotified?: boolean;
 };
 
 export type CheckoutDetails = {

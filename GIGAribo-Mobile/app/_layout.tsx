@@ -18,6 +18,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '@/context/AuthContext';
 import { MarketplaceProvider } from '@/context/MarketplaceContext';
+import { BookingAlerts } from '@/components/BookingAlerts';
 import { useColors } from '@/hooks/useColors';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -38,6 +39,7 @@ function RootLayoutNav() {
       <Stack.Screen name="register-provider" />
       <Stack.Screen name="my-services" />
       <Stack.Screen name="add-service" />
+      <Stack.Screen name="bookings" />
       <Stack.Screen name="location" options={{ presentation: 'modal' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="service/[id]" />
@@ -98,6 +100,7 @@ export default function RootLayout() {
                 <MarketplaceProvider>
                   <StatusBar style="dark" />
                   <RootLayoutNav />
+                  <BookingAlerts />
                 </MarketplaceProvider>
               </AuthProvider>
             </KeyboardProvider>

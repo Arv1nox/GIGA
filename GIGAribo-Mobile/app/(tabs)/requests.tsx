@@ -88,6 +88,14 @@ export default function RequestsScreen() {
                         <Text numberOfLines={1} style={[styles.scheduleText, { color: colors.mutedForeground }]}>{request.serviceArea}</Text>
                       </View>
                     ) : null}
+                    {request.status === 'Placed (demo)' && service.ownerId ? (
+                      <View style={styles.scheduled}>
+                        <Feather name={request.providerNotified ? 'send' : 'smartphone'} size={13} color={request.providerNotified ? colors.primary : colors.mutedForeground} />
+                        <Text style={[styles.scheduleText, { color: request.providerNotified ? colors.primary : colors.mutedForeground }]}>
+                          {request.providerNotified ? 'Sent to the provider' : 'Could not reach the provider'}
+                        </Text>
+                      </View>
+                    ) : null}
                     {request.checkout ? (
                       <View style={styles.scheduled}>
                         <Feather name="calendar" size={13} color={colors.mutedForeground} />
@@ -117,7 +125,7 @@ export default function RequestsScreen() {
         {hydrated && requests.length > 0 ? (
           <View style={[styles.tip, { backgroundColor: colors.accent }]}>
             <Feather name="info" size={16} color={colors.primary} />
-            <Text style={[styles.tipText, { color: colors.foreground }]}>Checkout and requests are saved on this device for preview. No provider is contacted and no payment is taken.</Text>
+            <Text style={[styles.tipText, { color: colors.foreground }]}>Requests are saved on this device. Bookings for services added by local providers are sent to that provider. No payment is taken.</Text>
           </View>
         ) : null}
         {hydrated && requests.length > 0 ? <View style={{ marginTop: 12 }}><ActionButton label="Browse services" secondary onPress={() => router.push('/(tabs)/explore')} /></View> : null}

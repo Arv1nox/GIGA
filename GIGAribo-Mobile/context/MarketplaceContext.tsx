@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import {
   getAllServices,
@@ -12,6 +12,16 @@ import {
 } from '@/constants/marketplace';
 import { useAuth } from '@/context/AuthContext';
 import { deleteRemoteService, fetchRemoteServices, insertRemoteService, updateRemoteService, uploadServiceImage } from '@/lib/remoteServices';
+import {
+  cancelRemoteBooking,
+  fetchProviderBookings,
+  insertRemoteBooking,
+  markRemoteBookingsSeen,
+  setRemoteBookingStatus,
+  subscribeToProviderBookings,
+  type Booking,
+  type BookingStatus,
+} from '@/lib/remoteBookings';
 import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
@@ -53,6 +63,17 @@ type MarketplaceContextValue = MarketplaceState & {
   removeCustomService: (serviceId: string) => Promise<void>;
   /** Pulls the latest shared services so customers see what providers just added. */
   refreshServices: () => Promise<void>;
+  /** Bookings customers made for the signed-in provider's services, newest first (empty for customers). */
+  bookings: Booking[];
+  /** Bookings the provider has not opened yet. */
+  unseenBookingCount: number;
+  /** Bookings still waiting for the provider to accept or decline. */
+  pendingBookingCount: number;
+  /** Set when a booking arrives while the app is open, so a popup can announce it. */
+  bookingAlert: { id: string; customerName: string; serviceTitle: string } | null;
+  refreshBookings: () => Promise<void>;
+  markBookingsSeen: () => Promise<void>;
+  updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
   setLocation: (location: string) => void;
   toggleFavorite: (serviceId: string) => void;
   addRequest: (serviceId: string, serviceArea?: string) => Promise<void>;
@@ -127,8 +148,11 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     };
   }, []);
 
-  const { session } = useAuth();
+  const { session, isProvider } = useAuth();
   const sessionUser = session?.user.id ?? null;
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingAlert, setBookingAlert] = useState<MarketplaceContextValue['bookingAlert']>(null);
+  const knownBookingIds = useRef<Set<string> | null>(null);
 
   // Load shared services once the saved data is in, again when someone signs in or out, and when the app comes back to the foreground.
   useEffect(() => {
@@ -157,6 +181,47 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       sub.remove();
     };
   }, [hydrated, sessionUser]);
+
+  // Providers: load bookings, then keep them fresh (live updates, every 30 seconds, and when the app comes back to the foreground).
+  useEffect(() => {
+    knownBookingIds.current = null;
+    if (!isProvider || !sessionUser) {
+      setBookings([]);
+      return;
+    }
+    let active = true;
+    const load = () => {
+      fetchProviderBookings(sessionUser)
+        .then((list) => {
+          if (!active) return;
+          const known = knownBookingIds.current;
+          if (known) {
+            const fresh = list.find((item) => !known.has(item.id) && item.status === 'new');
+            if (fresh) setBookingAlert({ id: fresh.id, customerName: fresh.customerName, serviceTitle: fresh.serviceTitle });
+          }
+          knownBookingIds.current = new Set(list.map((item) => item.id));
+          setBookings(list);
+        })
+        .catch(() => {});
+    };
+    load();
+    let stopListening = () => {};
+    try {
+      stopListening = subscribeToProviderBookings(sessionUser, load);
+    } catch {
+      // live updates are optional; the timer below still picks up new bookings
+    }
+    const timer = setInterval(load, 30000);
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status === 'active') load();
+    });
+    return () => {
+      active = false;
+      stopListening();
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [isProvider, sessionUser]);
 
   const save = (next: MarketplaceState) => {
     setState(next);
@@ -274,6 +339,40 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         return next;
       });
     },
+    bookings,
+    unseenBookingCount: bookings.filter((item) => !item.seen).length,
+    pendingBookingCount: bookings.filter((item) => item.status === 'new').length,
+    bookingAlert,
+    refreshBookings: async () => {
+      if (!sessionUser) return;
+      try {
+        const list = await fetchProviderBookings(sessionUser);
+        knownBookingIds.current = new Set(list.map((item) => item.id));
+        setBookings(list);
+      } catch {
+        // table not set up yet or offline: keep what we have
+      }
+    },
+    markBookingsSeen: async () => {
+      const ids = bookings.filter((item) => !item.seen).map((item) => item.id);
+      if (ids.length === 0) return;
+      setBookings((previous) => previous.map((item) => (ids.includes(item.id) ? { ...item, seen: true } : item)));
+      try {
+        await markRemoteBookingsSeen(ids);
+      } catch {
+        // harmless: they will show as new again next time
+      }
+    },
+    updateBookingStatus: async (bookingId, status) => {
+      const before = bookings;
+      setBookings((previous) => previous.map((item) => (item.id === bookingId ? { ...item, status } : item)));
+      try {
+        await setRemoteBookingStatus(bookingId, status);
+      } catch {
+        setBookings(before);
+        throw new Error('Could not update this booking. Check your connection and try again.');
+      }
+    },
     toggleFavorite: (serviceId) => {
       const favorites = state.favorites.includes(serviceId)
         ? state.favorites.filter((id) => id !== serviceId)
@@ -318,10 +417,36 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         throw new Error('Choose a valid date, time, and payment preview.');
       }
       const total = details.promoCode === 'GIGA10' ? Math.round(service.price * 0.9) : service.price;
+      // Tell the provider: send the booking to the shared database (only for services providers added in the app).
+      let providerNotified = false;
+      if (service.ownerId && session) {
+        const meta = session.user.user_metadata ?? {};
+        const savedName = state.profile.name && state.profile.name !== 'Guest' ? state.profile.name : '';
+        try {
+          await insertRemoteBooking({
+            id: request.id,
+            serviceId: service.id,
+            serviceTitle: service.title,
+            providerName: service.provider,
+            ownerId: service.ownerId,
+            customerName: savedName || String(meta.name ?? '').trim() || session.user.email || 'Customer',
+            customerPhone: state.profile.phone || String(meta.phone ?? ''),
+            serviceArea: request.serviceArea ?? service.area,
+            scheduledDate: details.scheduledDate,
+            timeSlot: details.timeSlot,
+            paymentMethod: details.paymentMethod,
+            promoCode: details.promoCode,
+            total,
+          });
+          providerNotified = true;
+        } catch {
+          providerNotified = false;
+        }
+      }
       const next: MarketplaceState = {
         ...state,
         requests: state.requests.map((item) => item.id === requestId
-          ? { ...item, status: 'Placed (demo)', checkout: { ...details, total } }
+          ? { ...item, status: 'Placed (demo)', checkout: { ...details, total }, providerNotified }
           : item),
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -331,6 +456,13 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       const request = state.requests.find((item) => item.id === requestId);
       if (!request || request.status !== 'Placed (demo)') {
         throw new Error('Only placed demo requests can be cancelled.');
+      }
+      if (request.providerNotified) {
+        try {
+          await cancelRemoteBooking(requestId);
+        } catch {
+          // the request is still cancelled on this device
+        }
       }
       const next: MarketplaceState = {
         ...state,
@@ -348,7 +480,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
     },
-  }), [state, hydrated]);
+  }), [state, hydrated, bookings, bookingAlert, sessionUser, session]);
 
   return <MarketplaceContext.Provider value={value}>{children}</MarketplaceContext.Provider>;
 }

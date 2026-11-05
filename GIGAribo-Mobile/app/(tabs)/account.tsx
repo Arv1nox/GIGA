@@ -27,7 +27,7 @@ export default function AccountScreen() {
 
   const signedIn = Boolean(session);
   const menuItems = isProvider
-    ? [{ label: 'My services', icon: 'briefcase' as const, route: '/my-services' }, ...menu]
+    ? [{ label: 'My services', icon: 'briefcase' as const, route: '/my-services' }, { label: 'Bookings', icon: 'calendar' as const, route: '/bookings' }, ...menu]
     : menu;
   // Prefer the saved profile name; otherwise use the full name entered at sign-up.
   const signupName = String(session?.user.user_metadata?.name ?? '').trim();

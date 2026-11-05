@@ -62,7 +62,7 @@ function PressScale({
 export default function MyServicesScreen() {
   const colors = useColors();
   const { session, isProvider, loading } = useAuth();
-  const { customServices, updateCustomService, removeCustomService, refreshServices } = useMarketplace();
+  const { customServices, updateCustomService, removeCustomService, refreshServices, refreshBookings, unseenBookingCount, pendingBookingCount, bookings } = useMarketplace();
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -96,7 +96,7 @@ export default function MyServicesScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await refreshServices();
+    await Promise.all([refreshServices(), refreshBookings()]);
     setRefreshing(false);
   }
 
@@ -188,6 +188,33 @@ export default function MyServicesScreen() {
             );
           })}
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Bookings: ${pendingBookingCount} waiting`}
+          onPress={() => { tap(); router.push('/bookings'); }}
+          style={[styles.bookingsCard, { backgroundColor: colors.card, borderColor: pendingBookingCount > 0 ? '#F3A64C' : colors.border }]}
+        >
+          <View>
+            <View style={[styles.catIcon, { backgroundColor: colors.accent }]}>
+              <Feather name="calendar" size={18} color={colors.primary} />
+            </View>
+            {unseenBookingCount > 0 ? (
+              <View pointerEvents="none" style={[styles.bookingBadge, { backgroundColor: colors.destructive, borderColor: colors.card }]}>
+                <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '800' }}>{unseenBookingCount}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: '800' }}>Bookings</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+              {pendingBookingCount > 0
+                ? `${pendingBookingCount} waiting for your answer`
+                : bookings.length > 0 ? `${bookings.length} in total` : 'No bookings yet'}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </Pressable>
 
         {deviceOnly.length > 0 ? (
           <View style={[styles.banner, { backgroundColor: colors.accent, borderColor: colors.border }]}>
@@ -320,6 +347,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 25, fontWeight: '800', marginTop: 8 },
   tiles: { flexDirection: 'row', gap: 10, marginTop: 16 },
   tile: { flex: 1, borderWidth: 1.5, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 12 },
+  bookingsCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderRadius: 16, padding: 12, marginTop: 14 },
+  bookingBadge: { position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 14 },
   card: { borderWidth: 1, borderRadius: 18, padding: 14, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
