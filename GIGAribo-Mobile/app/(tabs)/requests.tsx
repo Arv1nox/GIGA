@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -8,8 +8,14 @@ import { useAuth } from '@/context/AuthContext';
 import { getService, formatPrice, type ServiceRequest } from '@/constants/marketplace';
 import { ActionButton, EmptyState, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
 import { RequestCheckout } from '@/components/RequestCheckout';
+import { RateServiceModal } from '@/components/RateServiceModal';
 
-type View_ = 'active' | 'history';
+type View_ = 'pending' | 'active' | 'history';
+
+/** Accepted by the provider and waiting for the service to be done. */
+function isActiveRequest(request: ServiceRequest) {
+  return request.status === 'Placed (demo)' && request.providerStatus === 'confirmed';
+}
 
 /** A request is "past" once it was cancelled, or the provider completed or declined it. */
 function isPastRequest(request: ServiceRequest) {
@@ -19,19 +25,58 @@ function isPastRequest(request: ServiceRequest) {
 
 export default function RequestsScreen() {
   const colors = useColors();
-  const { requests, removeRequest, checkoutRequest, cancelRequest, hydrated } = useMarketplace();
+  const { requests, removeRequest, removeRequests, checkoutRequest, cancelRequest, hydrated, myRatings, rateRequest } = useMarketplace();
   const { session, loading: authLoading } = useAuth();
-  const params = useLocalSearchParams<{ tab?: string }>();
-  const [view, setView] = useState<View_>(params.tab === 'history' ? 'history' : 'active');
+  const params = useLocalSearchParams<{ tab?: string; checkout?: string; rate?: string; t?: string }>();
+  const [view, setView] = useState<View_>(params.tab === 'history' ? 'history' : params.tab === 'active' ? 'active' : 'pending');
   // Tabs stay mounted, so follow the tab asked for (e.g. from the "Booking completed" pop-up).
   useEffect(() => {
-    if (params.tab === 'history') setView('history');
+    if (params.tab === 'history' || params.tab === 'active' || params.tab === 'pending') setView(params.tab);
   }, [params.tab]);
-  const activeRequests = requests.filter((request) => !isPastRequest(request));
-  const pastRequests = requests.filter(isPastRequest);
-  const shown = view === 'history' ? pastRequests : activeRequests;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'checkout' | 'success' | 'cancelConfirm' | 'removeConfirm' | 'cancelled'>('checkout');
+  // Coming from "Add to requests": open the checkout panel for that request right away.
+  useEffect(() => {
+    if (!params.checkout) return;
+    if (!requests.some((request) => request.id === params.checkout)) return;
+    setView('pending');
+    setActiveId(params.checkout);
+    setMode('checkout');
+    router.setParams({ checkout: undefined, t: undefined });
+  }, [params.checkout, params.t, requests]);
+  // Pending: waiting for checkout or for the provider to answer. Active: accepted. History: done, declined or cancelled.
+  const pastRequests = requests.filter(isPastRequest);
+  const activeRequests = requests.filter((request) => !isPastRequest(request) && isActiveRequest(request));
+  const pendingRequests = requests.filter((request) => !isPastRequest(request) && !isActiveRequest(request));
+  const shown = view === 'history' ? pastRequests : view === 'active' ? activeRequests : pendingRequests;
+  const [ratingId, setRatingId] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState('');
+  async function deleteAllHistory() {
+    if (clearing) return;
+    setClearing(true);
+    setClearError('');
+    try {
+      await removeRequests(requests.filter(isPastRequest).map((request) => request.id));
+      setConfirmClear(false);
+    } catch {
+      setClearError('Could not delete your history. Please try again; nothing was removed.');
+    } finally {
+      setClearing(false);
+    }
+  }
+  const ratingRequest = requests.find((request) => request.id === ratingId);
+  // Coming from the "Booking completed" alert or notification: open the rating pop-up right away.
+  useEffect(() => {
+    if (!params.rate || !hydrated) return;
+    const target = requests.find((request) => request.id === params.rate);
+    if (!target) return;
+    setView('history');
+    if (target.providerStatus === 'completed' && !myRatings[target.id]) setRatingId(target.id);
+    router.setParams({ rate: undefined, t: undefined });
+  }, [params.rate, params.t, hydrated, requests, myRatings]);
+  const ratingService = getService(ratingRequest?.serviceId);
   const activeRequest = requests.find((request) => request.id === activeId);
   const activeService = getService(activeRequest?.serviceId);
 
@@ -57,11 +102,10 @@ export default function RequestsScreen() {
             <Text style={[styles.eyebrow, { color: colors.primary }]}>YOUR HOME, ON THE WAY</Text>
             <Text style={[styles.title, { color: colors.foreground }]}>Requests</Text>
           </View>
-          <IconButton icon="plus" accessibilityLabel="Browse services" onPress={() => router.push('/(tabs)/explore')} />
         </View>
         {hydrated && requests.length > 0 ? (
           <View style={[styles.segment, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {([['active', 'Active', activeRequests.length], ['history', 'History', pastRequests.length]] as const).map(([key, label, count]) => {
+            {([['pending', 'Pending', pendingRequests.length], ['active', 'Active', activeRequests.length], ['history', 'History', pastRequests.length]] as const).map(([key, label, count]) => {
               const selected = view === key;
               return (
                 <Pressable
@@ -88,20 +132,37 @@ export default function RequestsScreen() {
               icon="clock"
               title="No past bookings yet"
               message="Completed, declined and cancelled bookings are kept here."
-              action="See active requests"
-              onAction={() => setView('active')}
+              action="See pending requests"
+              onAction={() => setView('pending')}
+            />
+          ) : view === 'active' ? (
+            <EmptyState
+              icon="check-circle"
+              title="No active requests"
+              message="Requests the provider has accepted show up here until the service is done."
+              action="See pending requests"
+              onAction={() => setView('pending')}
             />
           ) : (
             <EmptyState
               icon="clipboard"
-              title={requests.length === 0 ? 'No requests yet' : 'No active requests'}
-              message={requests.length === 0 ? 'Add a service, then check out here to schedule a demo request.' : 'Your finished bookings are in History.'}
+              title={requests.length === 0 ? 'No requests yet' : 'No pending requests'}
+              message={requests.length === 0 ? 'Add a service, then check out here to schedule a demo request.' : 'Accepted requests are in Active and finished ones are in History.'}
               action="Explore services"
               onAction={() => router.push('/(tabs)/explore')}
             />
           )
         ) : view === 'history' ? (
           <View style={{ gap: 12 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete all history"
+              onPress={() => { setClearError(''); setConfirmClear(true); }}
+              style={[styles.clearAll, { borderColor: colors.border }]}
+            >
+              <Feather name="trash-2" size={13} color={colors.destructive} />
+              <Text style={{ color: colors.destructive, fontSize: 12, fontWeight: '800' }}>Delete all history</Text>
+            </Pressable>
             {pastRequests.map((request) => {
               const service = getService(request.serviceId);
               if (!service) return null;
@@ -126,6 +187,21 @@ export default function RequestsScreen() {
                     </View>
                     <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 11 }}>{when}</Text>
                     <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: '800' }}>{formatPrice(request.checkout?.total ?? service.price)}</Text>
+                    {a === 'completed' && request.providerNotified && service.ownerId ? (
+                      myRatings[request.id] ? (
+                        <View style={styles.rateLine}>
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <Feather key={value} name="star" size={12} color={value <= myRatings[request.id] ? '#F3A64C' : colors.border} />
+                          ))}
+                          <Text style={{ color: colors.mutedForeground, fontSize: 11, fontWeight: '700' }}>You rated this</Text>
+                        </View>
+                      ) : (
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Rate ${service.title}`} onPress={() => setRatingId(request.id)} style={[styles.rateButton, { backgroundColor: colors.accent }]}>
+                          <Feather name="star" size={12} color="#F3A64C" />
+                          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>Rate this service</Text>
+                        </Pressable>
+                      )
+                    ) : null}
                   </View>
                   <View style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
                     <IconButton icon="trash-2" size={17} accessibilityLabel="Remove from history" onPress={() => confirmRemove(request)} />
@@ -144,7 +220,7 @@ export default function RequestsScreen() {
           </View>
         ) : (
           <View style={{ gap: 13 }}>
-            {activeRequests.map((request) => {
+            {shown.map((request) => {
               const service = getService(request.serviceId);
               if (!service) return null;
               // Once the provider answers, show their answer instead of the plain "Placed" status.
@@ -230,6 +306,33 @@ export default function RequestsScreen() {
         ) : null}
         {hydrated && requests.length > 0 ? <View style={{ marginTop: 12 }}><ActionButton label="Browse services" secondary onPress={() => router.push('/(tabs)/explore')} /></View> : null}
       </ScrollView>
+      {confirmClear ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setConfirmClear(false)}>
+          <View style={[styles.confirmBackdrop, { backgroundColor: colors.modalScrim }]}>
+            <View style={[styles.confirmCard, { backgroundColor: colors.card }]}>
+              <View style={[styles.confirmIcon, { backgroundColor: colors.accent }]}>
+                <Feather name="trash-2" size={20} color={colors.destructive} />
+              </View>
+              <Text style={[styles.confirmTitle, { color: colors.foreground }]}>Delete all history?</Text>
+              <Text style={[styles.confirmBody, { color: colors.mutedForeground }]}>
+                This removes {pastRequests.length} past {pastRequests.length === 1 ? 'booking' : 'bookings'} (completed, declined and cancelled) from your history. This can&apos;t be undone. Pending and active requests are not affected.
+              </Text>
+              {clearError ? <Text accessibilityRole="alert" style={[styles.confirmBody, { color: colors.destructive }]}>{clearError}</Text> : null}
+              <ActionButton label={clearing ? 'Deleting…' : 'Yes, delete all'} icon="trash-2" disabled={clearing} onPress={() => { void deleteAllHistory(); }} style={{ alignSelf: 'stretch', backgroundColor: colors.destructive }} />
+              <ActionButton label="Keep my history" secondary disabled={clearing} onPress={() => setConfirmClear(false)} style={{ alignSelf: 'stretch' }} />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+      {ratingRequest && ratingService ? (
+        <RateServiceModal
+          key={ratingRequest.id}
+          serviceTitle={ratingService.title}
+          provider={ratingService.provider}
+          onClose={() => setRatingId(null)}
+          onSubmit={(stars, comment) => rateRequest(ratingRequest.id, stars, comment)}
+        />
+      ) : null}
       {activeRequest && activeService ? (
         <RequestCheckout
           key={activeRequest.id}
@@ -279,6 +382,14 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, alignItems: 'center', borderRadius: 12, paddingVertical: 9 },
   historyCard: { flexDirection: 'row', alignItems: 'stretch', gap: 12, borderWidth: 1, borderRadius: 18, padding: 10 },
   historyPhoto: { width: 84, height: 96, borderRadius: 14 },
+  clearAll: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7 },
+  confirmBackdrop: { flex: 1, justifyContent: 'center', paddingHorizontal: 23 },
+  confirmCard: { borderRadius: 20, padding: 22, alignItems: 'center', gap: 12, width: '100%', maxWidth: 420, alignSelf: 'center' },
+  confirmIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  confirmTitle: { fontSize: 19, fontWeight: '800' },
+  confirmBody: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  rateLine: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
+  rateButton: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, marginTop: 2 },
   again: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 7 },
   loading: { minHeight: 250, justifyContent: 'center', alignItems: 'center', gap: 10 },
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 13, borderRadius: 15, marginTop: 14 },

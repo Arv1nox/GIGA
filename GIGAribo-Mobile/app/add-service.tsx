@@ -9,11 +9,14 @@ import { ActionButton, BrandMark, FormField, IconButton, Page } from '@/componen
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { useAuth } from '@/context/AuthContext';
-import { categories, formatPrice } from '@/constants/marketplace';
+import { categories, DEFAULT_WORK_END, DEFAULT_WORK_START, formatHour, formatPrice, getWorkingHours } from '@/constants/marketplace';
 
 type FeatherName = React.ComponentProps<typeof Feather>['name'];
 
 const PRICE_IDEAS = [500, 850, 1200, 2000];
+// Opening hours a provider can pick (24-hour clock). Closing is always later than opening.
+const OPEN_HOURS = [5, 6, 7, 8, 9, 10, 11, 12];
+const CLOSE_HOURS = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 
 /** Providers add (or edit) a service customers can find and request. */
 export default function AddServiceScreen() {
@@ -34,6 +37,9 @@ export default function AddServiceScreen() {
   const [image, setImage] = useState<string | null>(editing?.imageUrl ?? null);
   const [imageType, setImageType] = useState<string | null>(null);
   const [imageChanged, setImageChanged] = useState(false);
+  const savedHours = getWorkingHours(editing);
+  const [workStart, setWorkStart] = useState(editing ? savedHours.start : DEFAULT_WORK_START);
+  const [workEnd, setWorkEnd] = useState(editing ? savedHours.end : DEFAULT_WORK_END);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const subtitleRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
@@ -121,6 +127,8 @@ export default function AddServiceScreen() {
       price: Math.round(amount),
       area: cleanArea,
       serviceAreas: serviceAreas.length > 0 ? serviceAreas : [cleanArea],
+      workStart,
+      workEnd,
       // Only send the photo when it was added or changed (an untouched saved photo stays as it is).
       ...(!editing || imageChanged ? { image, imageType } : {}),
     };
@@ -286,6 +294,41 @@ export default function AddServiceScreen() {
           returnKeyType="go"
           onSubmitEditing={saveService}
         />
+
+        <View style={{ gap: 9 }}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>Working hours</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: -4 }}>
+            Customers can only book times inside these hours. Open {formatHour(workStart)} to {formatHour(workEnd)}.
+          </Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 11, fontWeight: '700' }}>Opens</Text>
+          <View style={styles.chips}>
+            {OPEN_HOURS.map((hour) => (
+              <Pressable
+                key={`open-${hour}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: workStart === hour }}
+                onPress={() => setWorkStart(hour)}
+                style={[styles.priceChip, { backgroundColor: workStart === hour ? colors.accent : colors.card, borderColor: workStart === hour ? colors.primary : colors.border }]}
+              >
+                <Text style={{ color: workStart === hour ? colors.primary : colors.mutedForeground, fontSize: 12, fontWeight: '700' }}>{formatHour(hour)}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={{ color: colors.mutedForeground, fontSize: 11, fontWeight: '700' }}>Closes</Text>
+          <View style={styles.chips}>
+            {CLOSE_HOURS.map((hour) => (
+              <Pressable
+                key={`close-${hour}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: workEnd === hour }}
+                onPress={() => setWorkEnd(hour)}
+                style={[styles.priceChip, { backgroundColor: workEnd === hour ? colors.accent : colors.card, borderColor: workEnd === hour ? colors.primary : colors.border }]}
+              >
+                <Text style={{ color: workEnd === hour ? colors.primary : colors.mutedForeground, fontSize: 12, fontWeight: '700' }}>{formatHour(hour)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
         <ActionButton
           label={isSubmitting ? 'Saving...' : editing ? 'Save changes' : 'Add service'}

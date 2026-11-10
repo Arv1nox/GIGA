@@ -46,7 +46,7 @@ export function Page({ children, tabbed = false, style }: { children: React.Reac
   const column = (
     <View
       style={[
-        { flex: 1, backgroundColor: colors.background, paddingTop: isWeb ? 67 : insets.top, paddingBottom: isWeb && !tabbed ? 34 : 0 },
+        { flex: 1, backgroundColor: colors.background, paddingTop: isWeb ? 12 : insets.top, paddingBottom: isWeb && !tabbed ? 34 : 0 },
         // On wide web screens keep the content in a centered, phone-like column.
         isWeb ? { width: '100%', maxWidth: 560, alignSelf: 'center' } : null,
         style,
@@ -327,7 +327,7 @@ export function ServiceCard({
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${service.title}`} onPress={onPress}>
           <ServicePhoto serviceId={service.id} imageUrl={service.imageUrl} style={styles.serviceCardImage} />
         </Pressable>
-        {service.rating >= 4.9 ? (
+        {service.reviews >= 5 && service.rating >= 4.9 ? (
           <View style={[styles.topBadge, { backgroundColor: colors.card }]} pointerEvents="none">
             <Feather name="award" size={10} color="#F3A64C" />
             <Text style={[styles.topBadgeText, { color: colors.foreground }]}>Top rated</Text>
@@ -350,7 +350,7 @@ export function ServiceCard({
           <Text style={[styles.servicePrice, { color: colors.foreground }]}>{formatPrice(service.price)}</Text>
           <View style={styles.rating}>
             <Feather name="star" size={12} color="#F3A64C" />
-            <Text style={[styles.ratingText, { color: colors.foreground }]}>{service.rating.toFixed(1)}</Text>
+            <Text style={[styles.ratingText, { color: colors.foreground }]}>{service.reviews > 0 ? service.rating.toFixed(1) : 'New'}</Text>
           </View>
         </View>
       </Pressable>
@@ -382,7 +382,7 @@ export function ServiceRow({
           <Text style={[styles.servicePrice, { color: colors.foreground }]}>{formatPrice(service.price)}</Text>
           <View style={styles.rating}>
             <Feather name="star" size={12} color="#F3A64C" />
-            <Text style={[styles.ratingText, { color: colors.foreground }]}>{service.rating.toFixed(1)}</Text>
+            <Text style={[styles.ratingText, { color: colors.foreground }]}>{service.reviews > 0 ? service.rating.toFixed(1) : 'New'}</Text>
           </View>
         </View>
       </Pressable>

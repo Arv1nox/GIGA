@@ -50,7 +50,7 @@ export default function ProviderProfileScreen() {
           <View style={styles.pills}>
             <View style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="star" size={13} color="#F3A64C" />
-              <Text style={[styles.pillText, { color: colors.foreground }]}>{stats.rating.toFixed(1)} ({stats.reviews} reviews)</Text>
+              <Text style={[styles.pillText, { color: colors.foreground }]}>{stats.reviews > 0 ? `${stats.rating.toFixed(1)} (${stats.reviews} ${stats.reviews === 1 ? 'rating' : 'ratings'})` : 'No ratings yet'}</Text>
             </View>
             <View style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="map-pin" size={13} color={colors.primary} />

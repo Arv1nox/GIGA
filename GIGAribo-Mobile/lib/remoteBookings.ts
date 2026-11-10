@@ -85,7 +85,16 @@ export async function insertRemoteBooking(booking: NewBooking) {
     promo_code: booking.promoCode,
     total: booking.total,
   });
+  // The database allows one active booking per provider, date and time (see supabase/reservations.sql).
+  if (error?.code === '23505') throw new Error('SLOT_TAKEN');
   if (error) throw error;
+}
+
+/** Date and time slots a provider already has booked (and not declined or cancelled). Empty if the database is not set up yet. */
+export async function fetchTakenSlots(ownerId: string): Promise<{ date: string; slot: string }[]> {
+  const { data, error } = await supabase.rpc('taken_slots', { p_owner: ownerId });
+  if (error) return [];
+  return ((data ?? []) as { scheduled_date: string; time_slot: string }[]).map((row) => ({ date: String(row.scheduled_date).slice(0, 10), slot: row.time_slot }));
 }
 
 /** Bookings for the signed-in provider's services, newest first. */

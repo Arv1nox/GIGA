@@ -19,7 +19,7 @@ export function BookingAlerts() {
     ? requestAlert.status === 'confirmed'
       ? `${requestAlert.provider} accepted ${requestAlert.serviceTitle}`
       : requestAlert.status === 'completed'
-        ? `${requestAlert.serviceTitle} is marked as done`
+        ? `${requestAlert.serviceTitle} is done. Tap to rate it`
         : `${requestAlert.provider} could not take ${requestAlert.serviceTitle}`
     : undefined;
   return (
@@ -35,7 +35,9 @@ export function BookingAlerts() {
         trigger={requestAlert ? requestAlert.id : null}
         title={answerTitle}
         detail={answerDetail}
-        onPress={() => router.push(requestAlert?.status === 'completed' ? { pathname: '/(tabs)/requests', params: { tab: 'history' } } : '/(tabs)/requests')}
+        onPress={() => router.push(requestAlert?.status === 'completed'
+          ? { pathname: '/(tabs)/requests', params: { tab: 'history', rate: requestAlert.requestId, t: String(Date.now()) } }
+          : { pathname: '/(tabs)/requests', params: { tab: requestAlert?.status === 'confirmed' ? 'active' : 'pending' } })}
         duration={5000}
       />
     </>

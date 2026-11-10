@@ -29,7 +29,33 @@ export type Service = {
   synced?: boolean;
   /** Optional photo the provider added. A web URL once uploaded, or a file on this device if the upload failed. */
   imageUrl?: string;
+  /** First hour the provider takes jobs (0-23). Defaults to 8 (8:00 AM). */
+  workStart?: number;
+  /** Hour the provider stops taking jobs (1-24). The last job starts an hour before. Defaults to 17 (5:00 PM). */
+  workEnd?: number;
 };
+
+export const DEFAULT_WORK_START = 8;
+export const DEFAULT_WORK_END = 17;
+
+/** 8 -> "8:00 AM", 13 -> "1:00 PM". */
+export function formatHour(hour: number) {
+  const h = ((hour % 24) + 24) % 24;
+  return `${h % 12 || 12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** The provider's working hours, falling back to 8:00 AM - 5:00 PM when unset or invalid. */
+export function getWorkingHours(service?: Pick<Service, 'workStart' | 'workEnd'>) {
+  const start = Number.isInteger(service?.workStart) ? (service!.workStart as number) : DEFAULT_WORK_START;
+  const end = Number.isInteger(service?.workEnd) ? (service!.workEnd as number) : DEFAULT_WORK_END;
+  return start >= 0 && end <= 24 && end > start ? { start, end } : { start: DEFAULT_WORK_START, end: DEFAULT_WORK_END };
+}
+
+/** Hourly time slots a customer can book: from opening time up to the last hour before closing. */
+export function getServiceSlots(service?: Pick<Service, 'workStart' | 'workEnd'>) {
+  const { start, end } = getWorkingHours(service);
+  return Array.from({ length: end - start }, (_, index) => formatHour(start + index));
+}
 
 export type Provider = {
   id: string;

@@ -8,6 +8,7 @@ import { useMarketplace } from '@/context/MarketplaceContext';
 import { useAuth } from '@/context/AuthContext';
 import { categories, formatPrice, getProvider, getService } from '@/constants/marketplace';
 import { ActionButton, HeartButton, IconButton, Page, ServiceImage, uiStyles } from '@/components/MarketplaceUI';
+import { ServiceReviewsModal } from '@/components/ServiceReviewsModal';
 
 export default function ServiceDetailScreen() {
   const colors = useColors();
@@ -19,6 +20,7 @@ export default function ServiceDetailScreen() {
   const service = getService(id);
   const [area, setArea] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
 
   // Fall back to the home tab when there is nothing to go back to (e.g. page reloaded on web).
   const goBack = () => {
@@ -60,8 +62,9 @@ export default function ServiceDetailScreen() {
     }
     setAdding(true);
     try {
-      await addRequest(service.id, chosenArea);
-      router.replace({ pathname: '/(tabs)/shop', params: { added: service.title, t: String(Date.now()) } });
+      const requestId = await addRequest(service.id, chosenArea);
+      // Go straight to checkout for the request we just created.
+      router.replace({ pathname: '/(tabs)/requests', params: { checkout: requestId, t: String(Date.now()) } });
     } catch (error) {
       Alert.alert('Could not add request', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -92,12 +95,13 @@ export default function ServiceDetailScreen() {
           ) : null}
           <View style={styles.metaRow}>
             <Text style={[styles.price, { color: colors.foreground }]}>From {formatPrice(service.price)}</Text>
-            <View style={styles.rating}>
+            <Pressable accessibilityRole="button" accessibilityLabel="See ratings and reviews" onPress={() => setReviewsOpen(true)} style={styles.rating}>
               <Feather name="star" size={14} color="#F3A64C" />
               <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: '700' }}>
                 {service.reviews > 0 ? `${service.rating.toFixed(1)} (${service.reviews})` : 'New'}
               </Text>
-            </View>
+              <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+            </Pressable>
           </View>
         </View>
 
@@ -170,6 +174,16 @@ export default function ServiceDetailScreen() {
           />
         </View>
       </ScrollView>
+      {reviewsOpen ? (
+        <ServiceReviewsModal
+          serviceId={service.id}
+          serviceTitle={service.title}
+          rating={service.rating}
+          reviews={service.reviews}
+          hasReviews={Boolean(service.ownerId)}
+          onClose={() => setReviewsOpen(false)}
+        />
+      ) : null}
     </Page>
   );
 }

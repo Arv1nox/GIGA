@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
@@ -6,7 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useMarketplace } from '@/context/MarketplaceContext';
-import { categories } from '@/constants/marketplace';
+import { categories, getService } from '@/constants/marketplace';
 
 import { Toast } from '@/components/Toast';
 import { GetStartedCard, GetStartedTour, useGetStartedTour } from '@/components/GetStartedTour';
@@ -24,6 +25,8 @@ type Notice = {
   unread: boolean;
 };
 
+const NOTICE_STORE = 'gigaribo-notices-v1';
+
 // Sample notifications for the demo.
 const initialNotices: Notice[] = [
   { id: 'welcome', icon: 'gift', title: 'Welcome to GIGAribo', body: 'Use code GIGA10 for 10% off your first booking (demo offer).', time: 'Just now', route: '/settings/promo', unread: true },
@@ -33,26 +36,83 @@ const initialNotices: Notice[] = [
 
 export default function ShopScreen() {
   const colors = useColors();
-  const { location, favorites, toggleFavorite, allServices, customServices } = useMarketplace();
+  const { location, favorites, toggleFavorite, allServices, customServices, requests, myRatings } = useMarketplace();
   const insets = useSafeAreaInsets();
   const featured = allServices.slice(0, 4);
   // Services providers added in the app, newest first (paused ones are hidden from customers).
-  const newFromProviders = customServices.filter((service) => service.active !== false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const activeCustom = customServices.filter((service) => service.active !== false);
+  // Tapping a category on the home page narrows this list to that category only.
+  const newFromProviders = selectedCategory ? activeCustom.filter((service) => service.category === selectedCategory) : activeCustom;
+  const selectedTitle = categories.find((item) => item.id === selectedCategory)?.title;
   // Set by the service page after "Add to requests" to show the popup here.
   const { added, t } = useLocalSearchParams<{ added?: string; t?: string }>();
   const tour = useGetStartedTour();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notices, setNotices] = useState<Notice[]>(initialNotices);
-  const unreadCount = notices.filter((notice) => notice.unread).length;
+  // Which notifications the customer already read or dismissed (kept on the device).
+  const [noticeStore, setNoticeStore] = useState<{ dismissed: string[]; read: string[] }>({ dismissed: [], read: [] });
+  const [noticesLoaded, setNoticesLoaded] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(NOTICE_STORE)
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { dismissed?: string[]; read?: string[] };
+        setNoticeStore({
+          dismissed: Array.isArray(saved.dismissed) ? saved.dismissed : [],
+          read: Array.isArray(saved.read) ? saved.read : [],
+        });
+      })
+      .catch(() => {})
+      .finally(() => setNoticesLoaded(true));
+  }, []);
+  const updateNoticeStore = (next: { dismissed: string[]; read: string[] }) => {
+    setNoticeStore(next);
+    void AsyncStorage.setItem(NOTICE_STORE, JSON.stringify(next));
+  };
+
+  // Notifications come from what happens to the customer's requests. Each event has its own id, so a dismissed
+  // notification stays gone until something new happens (e.g. the provider accepts the request).
+  const isRead = (id: string) => noticeStore.read.includes(id);
+  const whenAdded = (iso: string) => new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const rateNotices: Notice[] = [];
+  const acceptedNotices: Notice[] = [];
+  const placedNotices: Notice[] = [];
+  const addedNotices: Notice[] = [];
+  for (const request of requests) {
+    const service = getService(request.serviceId);
+    const name = service?.title ?? 'Your service';
+    if (request.status === 'Pending checkout') {
+      const id = `added-${request.id}`;
+      addedNotices.push({ id, icon: 'plus-circle', title: 'Request added', body: `${name} is waiting for checkout. Tap to finish.`, time: whenAdded(request.createdAt), route: { pathname: '/(tabs)/requests', params: { checkout: request.id, t: request.id } } as Href, unread: !isRead(id) });
+    } else if (request.status === 'Placed (demo)') {
+      if (request.providerStatus === 'completed' && request.providerNotified && !myRatings[request.id]) {
+        const id = `rate-${request.id}`;
+        rateNotices.push({ id, icon: 'star', title: 'Your service is done', body: `${name} was completed. Tap to rate it.`, time: 'Recently', route: { pathname: '/(tabs)/requests', params: { tab: 'history', rate: request.id } } as Href, unread: !isRead(id) });
+      } else if (request.providerStatus === 'confirmed') {
+        const id = `accepted-${request.id}`;
+        acceptedNotices.push({ id, icon: 'check-circle', title: 'Request accepted', body: `${service?.provider ?? 'The provider'} accepted ${name}.`, time: 'Recently', route: { pathname: '/(tabs)/requests', params: { tab: 'active' } } as Href, unread: !isRead(id) });
+      } else if (!request.providerStatus || request.providerStatus === 'new') {
+        const id = `placed-${request.id}`;
+        placedNotices.push({ id, icon: 'send', title: 'Request placed', body: `${name} is waiting for the provider's answer.`, time: whenAdded(request.createdAt), route: { pathname: '/(tabs)/requests', params: { tab: 'pending' } } as Href, unread: !isRead(id) });
+      }
+    }
+  }
+  const sampleNotices = initialNotices.map((notice) => ({ ...notice, unread: notice.unread && !isRead(notice.id) }));
+  const allNotices = noticesLoaded
+    ? [...rateNotices, ...acceptedNotices, ...placedNotices, ...addedNotices, ...sampleNotices].filter((notice) => !noticeStore.dismissed.includes(notice.id))
+    : [];
+  const unreadCount = allNotices.filter((notice) => notice.unread).length;
   // Place the popup just under the bell (page top padding + scroll padding + header height).
-  const popupTop = (Platform.OS === 'web' ? 67 : insets.top) + 8 + 46;
+  const popupTop = (Platform.OS === 'web' ? 12 : insets.top) + 8 + 46;
 
   const openNotice = (notice: Notice) => {
-    setNotices((current) => current.map((item) => (item.id === notice.id ? { ...item, unread: false } : item)));
+    if (!isRead(notice.id)) updateNoticeStore({ ...noticeStore, read: [...noticeStore.read, notice.id] });
     setNotifOpen(false);
     router.push(notice.route);
   };
-  const markAllRead = () => setNotices((current) => current.map((item) => ({ ...item, unread: false })));
+  const markAllRead = () => updateNoticeStore({ ...noticeStore, read: Array.from(new Set([...noticeStore.read, ...allNotices.map((notice) => notice.id)])) });
+  // The X on a notification removes it for good.
+  const dismissNotice = (id: string) => updateNoticeStore({ ...noticeStore, dismissed: [...noticeStore.dismissed.filter((item) => item !== id), id] });
 
   return (
     <Page tabbed>
@@ -99,7 +159,17 @@ export default function ShopScreen() {
           <SectionHeading title="Find a service" action="See all" onAction={() => router.push('/(tabs)/explore')} />
           <View style={styles.categoryGrid}>
             {categories.map((category) => (
-              <CategoryTile key={category.id} category={category} width="31.5%" onPress={() => router.push({ pathname: '/(tabs)/explore', params: { category: category.id } })} />
+              <CategoryTile
+                key={category.id}
+                category={category}
+                width="31.5%"
+                selected={selectedCategory === category.id}
+                onPress={() => {
+                  // Filter the home page's local providers and jump to Explore for that category.
+                  setSelectedCategory(category.id);
+                  router.push({ pathname: '/(tabs)/explore', params: { category: category.id } });
+                }}
+              />
             ))}
           </View>
         </View>
@@ -120,10 +190,26 @@ export default function ShopScreen() {
           </ServiceGrid>
         </View>
 
-        {newFromProviders.length > 0 ? (
+        {activeCustom.length > 0 || selectedCategory ? (
           <View style={styles.section}>
-            <SectionHeading title="New from local providers" action="See all" onAction={() => router.push('/(tabs)/explore')} />
+            <SectionHeading
+              title={selectedTitle ? `New from local providers · ${selectedTitle}` : 'New from local providers'}
+              action="See all"
+              onAction={() => router.push(selectedCategory ? { pathname: '/(tabs)/explore', params: { category: selectedCategory } } : '/(tabs)/explore')}
+            />
+            {selectedCategory ? (
+              <Pressable accessibilityRole="button" onPress={() => setSelectedCategory(null)} style={styles.clearFilter}>
+                <Feather name="x" size={12} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>Show all categories</Text>
+              </Pressable>
+            ) : null}
             <View style={{ gap: 12 }}>
+              {newFromProviders.length === 0 ? (
+                <View style={[styles.bottomNote, { backgroundColor: colors.accent }]}>
+                  <Feather name="info" size={16} color={colors.primary} />
+                  <Text style={[styles.bottomNoteText, { color: colors.foreground }]}>No local providers in {selectedTitle} yet.</Text>
+                </View>
+              ) : null}
               {newFromProviders.slice(0, 3).map((service) => (
                 <ServiceRow
                   key={service.id}
@@ -200,27 +286,36 @@ export default function ShopScreen() {
                   <IconButton icon="x" size={18} accessibilityLabel="Close notifications" onPress={() => setNotifOpen(false)} />
                 </View>
               </View>
-              {notices.map((notice, index) => (
-                <Pressable
-                  key={notice.id}
-                  accessibilityRole="button"
-                  onPress={() => openNotice(notice)}
-                  style={({ pressed }) => [
-                    styles.notice,
-                    { borderTopColor: colors.border, borderTopWidth: index === 0 ? 0 : 1, backgroundColor: pressed ? colors.muted : 'transparent' },
-                  ]}
-                >
-                  <View style={[styles.noticeIcon, { backgroundColor: colors.accent }]}>
-                    <Feather name={notice.icon} size={17} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.noticeTitle, { color: colors.foreground }]}>{notice.title}</Text>
-                    <Text style={[styles.noticeBody, { color: colors.mutedForeground }]}>{notice.body}</Text>
-                    <Text style={[styles.noticeTime, { color: colors.mutedForeground }]}>{notice.time}</Text>
-                  </View>
-                  {notice.unread ? <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} /> : null}
-                </Pressable>
-              ))}
+              {allNotices.length === 0 ? (
+                <Text style={[styles.noticeEmpty, { color: colors.mutedForeground }]}>You&apos;re all caught up.</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+                  {allNotices.map((notice, index) => (
+                    <View key={notice.id} style={[styles.notice, { borderTopColor: colors.border, borderTopWidth: index === 0 ? 0 : 1 }]}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => openNotice(notice)}
+                        style={({ pressed }) => [styles.noticeMain, { backgroundColor: pressed ? colors.muted : 'transparent' }]}
+                      >
+                        <View style={[styles.noticeIcon, { backgroundColor: colors.accent }]}>
+                          <Feather name={notice.icon} size={17} color={colors.primary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.noticeTitle, { color: colors.foreground }]}>{notice.title}</Text>
+                          <Text style={[styles.noticeBody, { color: colors.mutedForeground }]}>{notice.body}</Text>
+                          <Text style={[styles.noticeTime, { color: colors.mutedForeground }]}>{notice.time}</Text>
+                        </View>
+                      </Pressable>
+                      <View style={styles.noticeSide}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss ${notice.title}`} hitSlop={8} onPress={() => dismissNotice(notice.id)} style={styles.noticeX}>
+                          <Feather name="x" size={15} color={colors.mutedForeground} />
+                        </Pressable>
+                        {notice.unread ? <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} /> : null}
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
             </View>
           </View>
         </View>
@@ -259,12 +354,16 @@ const styles = StyleSheet.create({
   popupTitle: { fontSize: 16, fontWeight: '800' },
   popupActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   markRead: { fontSize: 11, fontWeight: '700' },
-  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
+  notice: { flexDirection: 'row', alignItems: 'stretch' },
+  noticeMain: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingLeft: 16, paddingVertical: 13, paddingRight: 4 },
+  noticeSide: { alignItems: 'center', gap: 10, paddingTop: 12, paddingRight: 12, paddingLeft: 4, width: 36 },
+  noticeX: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  noticeEmpty: { fontSize: 12, textAlign: 'center', paddingVertical: 28 },
   noticeIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   noticeTitle: { fontSize: 13, fontWeight: '800' },
   noticeBody: { fontSize: 12, lineHeight: 17, marginTop: 3 },
   noticeTime: { fontSize: 10, marginTop: 6, opacity: 0.8 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
   location: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 1, maxWidth: 250 },
   locationText: { fontSize: 11, fontWeight: '600', maxWidth: 210 },
   search: { minHeight: 48, borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, marginBottom: 18 },
@@ -277,6 +376,7 @@ const styles = StyleSheet.create({
   bannerCopy: { fontSize: 11, marginTop: 5 },
   bannerArrow: { position: 'absolute', right: 15, bottom: 15, width: 33, height: 33, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   section: { marginBottom: 23 },
+  clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginBottom: 10, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(40,96,232,0.1)' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   promo: { borderRadius: 20, overflow: 'hidden', marginBottom: 23 },
   promoGradient: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },

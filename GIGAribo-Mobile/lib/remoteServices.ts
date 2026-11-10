@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Service } from '@/constants/marketplace';
+import { DEFAULT_WORK_END, DEFAULT_WORK_START, type Service } from '@/constants/marketplace';
 
 /** Shape of a row in the Supabase `services` table (see supabase/services.sql). */
 type ServiceRow = {
@@ -16,6 +16,9 @@ type ServiceRow = {
   active: boolean;
   /** Needs the `image_url` column and `service-images` bucket (see supabase/service-images.sql). */
   image_url?: string | null;
+  /** Working hours: need the columns from supabase/working-hours.sql. */
+  work_start?: number | null;
+  work_end?: number | null;
 };
 
 function rowToService(row: ServiceRow): Service {
@@ -36,6 +39,8 @@ function rowToService(row: ServiceRow): Service {
     active: row.active,
     synced: true,
     imageUrl: row.image_url || undefined,
+    workStart: row.work_start ?? undefined,
+    workEnd: row.work_end ?? undefined,
   };
 }
 
@@ -54,10 +59,27 @@ function serviceToRow(service: Service): ServiceRow {
     active: service.active !== false,
     // Only a web URL can be shared; a file on this phone means the upload did not work.
     image_url: service.imageUrl && /^https?:\/\//.test(service.imageUrl) ? service.imageUrl : null,
+    work_start: service.workStart ?? DEFAULT_WORK_START,
+    work_end: service.workEnd ?? DEFAULT_WORK_END,
   };
 }
 
-const isImageColumnError = (error: { message?: string } | null) => Boolean(error?.message?.includes('image_url'));
+// Columns added later by optional SQL files. If one is missing in the database, save without it instead of failing.
+const OPTIONAL_COLUMNS = ['image_url', 'work_start', 'work_end'] as const;
+
+async function saveWithoutMissingColumns(
+  row: Record<string, unknown>,
+  run: (row: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>,
+) {
+  const current = { ...row };
+  for (let attempt = 0; attempt <= OPTIONAL_COLUMNS.length; attempt += 1) {
+    const { error } = await run(current);
+    if (!error) return;
+    const missing = OPTIONAL_COLUMNS.find((column) => column in current && error.message?.includes(column));
+    if (!missing) throw error;
+    delete current[missing];
+  }
+}
 
 /** Uploads a picked photo to the public `service-images` bucket and returns its web URL. */
 export async function uploadServiceImage(uri: string, ownerId: string, mimeType?: string | null): Promise<string> {
@@ -79,27 +101,14 @@ export async function fetchRemoteServices(): Promise<Service[]> {
 }
 
 export async function insertRemoteService(service: Service) {
-  const row = serviceToRow(service);
-  let { error } = await supabase.from('services').insert(row);
-  if (error && isImageColumnError(error)) {
-    // The image column has not been added yet: still list the service, just without its photo.
-    const { image_url, ...withoutImage } = row;
-    void image_url;
-    ({ error } = await supabase.from('services').insert(withoutImage));
-  }
-  if (error) throw error;
+  // A missing optional column (photo, working hours) just means that part is not saved yet.
+  await saveWithoutMissingColumns(serviceToRow(service), (row) => supabase.from('services').insert(row));
 }
 
 export async function updateRemoteService(service: Service) {
   const { id, owner_id, ...fields } = serviceToRow(service);
   void owner_id;
-  let { error } = await supabase.from('services').update(fields).eq('id', id);
-  if (error && isImageColumnError(error)) {
-    const { image_url, ...withoutImage } = fields;
-    void image_url;
-    ({ error } = await supabase.from('services').update(withoutImage).eq('id', id));
-  }
-  if (error) throw error;
+  await saveWithoutMissingColumns(fields, (row) => supabase.from('services').update(row).eq('id', id));
 }
 
 export async function deleteRemoteService(id: string) {

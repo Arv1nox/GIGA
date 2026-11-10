@@ -5,6 +5,9 @@ import {
   getAllServices,
   getService,
   setCustomMarketplace,
+  DEFAULT_WORK_END,
+  DEFAULT_WORK_START,
+  getServiceSlots,
   type CheckoutDetails,
   type Profile,
   type Service,
@@ -24,6 +27,7 @@ import {
   type Booking,
   type BookingStatus,
 } from '@/lib/remoteBookings';
+import { fetchMyRatings, fetchRatingStats, insertRemoteRating, type RatingStat } from '@/lib/remoteRatings';
 import { supabase } from '@/lib/supabase';
 
 type MarketplaceState = {
@@ -47,6 +51,9 @@ export type NewServiceInput = {
   image?: string | null;
   /** Mime type of a freshly picked photo. */
   imageType?: string | null;
+  /** Working hours (24-hour clock): first hour taking jobs and the hour the provider stops. */
+  workStart?: number;
+  workEnd?: number;
 };
 
 export type ProviderOwner = {
@@ -74,16 +81,22 @@ type MarketplaceContextValue = MarketplaceState & {
   /** Set when a booking arrives while the app is open, so a popup can announce it. */
   bookingAlert: { id: string; customerName: string; serviceTitle: string } | null;
   /** Set when a provider answers one of the customer's bookings, so a popup can announce it. */
-  requestAlert: { id: string; status: 'confirmed' | 'completed' | 'declined'; serviceTitle: string; provider: string } | null;
+  requestAlert: { id: string; requestId: string; status: 'confirmed' | 'completed' | 'declined'; serviceTitle: string; provider: string } | null;
   refreshBookings: () => Promise<void>;
   markBookingsSeen: () => Promise<void>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
   setLocation: (location: string) => void;
   toggleFavorite: (serviceId: string) => void;
-  addRequest: (serviceId: string, serviceArea?: string) => Promise<void>;
+  addRequest: (serviceId: string, serviceArea?: string) => Promise<string>;
   removeRequest: (requestId: string) => Promise<void>;
+  /** Removes several requests at once (used by "Delete all" in History). */
+  removeRequests: (requestIds: string[]) => Promise<void>;
   checkoutRequest: (requestId: string, details: CheckoutDetails) => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
+  /** Stars the signed-in customer gave, keyed by request id (one rating per completed request). */
+  myRatings: Record<string, number>;
+  /** Rates the service of a completed request, 1 to 5 stars. Each rating belongs to that one service. */
+  rateRequest: (requestId: string, stars: number, comment?: string) => Promise<void>;
   updateProfile: (profile: Profile) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   signOut: () => Promise<void>;
@@ -161,6 +174,12 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
   // Always the latest saved data, so background checks compare against what the screen shows.
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Ratings customers gave, worked out per service. Each service has its own rating.
+  const [ratingStats, setRatingStats] = useState<Record<string, RatingStat>>({});
+  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
+  const loadRatings = () => {
+    fetchRatingStats().then(setRatingStats).catch(() => {});
+  };
 
   // Load shared services once the saved data is in, again when someone signs in or out, and when the app comes back to the foreground.
   useEffect(() => {
@@ -181,14 +200,35 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         .catch(() => {});
     };
     refresh();
+    loadRatings();
     const sub = AppState.addEventListener('change', (status) => {
-      if (status === 'active') refresh();
+      if (status === 'active') {
+        refresh();
+        loadRatings();
+      }
     });
     return () => {
       active = false;
       sub.remove();
     };
   }, [hydrated, sessionUser]);
+
+  // Customers: remember which completed bookings they already rated.
+  useEffect(() => {
+    if (!sessionUser) {
+      setMyRatings({});
+      return;
+    }
+    let active = true;
+    fetchMyRatings(sessionUser)
+      .then((mine) => {
+        if (active) setMyRatings(mine);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [sessionUser]);
 
   // Providers: load bookings, then keep them fresh (live updates, every 30 seconds, and when the app comes back to the foreground).
   useEffect(() => {
@@ -251,7 +291,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
               const service = getService(request.serviceId);
               // Tell them about the most important change: a fresh accept or decline beats a later "completed".
               if (!announce || answer !== 'completed') {
-                announce = { id: `${request.id}-${answer}`, status: answer, serviceTitle: service?.title ?? 'your service', provider: service?.provider ?? 'The provider' };
+                announce = { id: `${request.id}-${answer}`, requestId: request.id, status: answer, serviceTitle: service?.title ?? 'your service', provider: service?.provider ?? 'The provider' };
               }
             }
             return { ...request, providerStatus: answer };
@@ -289,11 +329,21 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
+  // Each provider-added service carries its own rating from the ratings table (0 reviews until someone rates it).
+  const ratedCustomServices = useMemo(
+    () => state.customServices.map((service) => {
+      const stat = ratingStats[service.id];
+      return stat ? { ...service, rating: stat.rating, reviews: stat.reviews } : { ...service, rating: 0, reviews: 0 };
+    }),
+    [state.customServices, ratingStats],
+  );
+
   // Keep the lookup helpers in constants/marketplace.ts aware of services providers added.
-  setCustomMarketplace(state.customServices);
+  setCustomMarketplace(ratedCustomServices);
 
   const value = useMemo<MarketplaceContextValue>(() => ({
     ...state,
+    customServices: ratedCustomServices,
     hydrated,
     allServices: getAllServices(),
     addCustomService: async (input, owner) => {
@@ -318,6 +368,8 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
         active: true,
         synced: false,
         imageUrl,
+        workStart: input.workStart ?? DEFAULT_WORK_START,
+        workEnd: input.workEnd ?? DEFAULT_WORK_END,
       };
       // Try the shared database first so every customer can see it; fall back to this device only.
       let synced = false;
@@ -453,6 +505,13 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       const next = { ...state, requests: [request, ...state.requests] };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
+      return request.id;
+    },
+    removeRequests: async (requestIds) => {
+      const ids = new Set(requestIds);
+      const next = { ...state, requests: state.requests.filter((request) => !ids.has(request.id)) };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setState(next);
     },
     removeRequest: async (requestId) => {
       if (!state.requests.some((request) => request.id === requestId)) throw new Error('Request not found.');
@@ -470,15 +529,20 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const latest = new Date(today);
-      latest.setDate(latest.getDate() + 7);
+      latest.setDate(latest.getDate() + 90);
       latest.setHours(23, 59, 59, 999);
       if (Number.isNaN(selected.getTime()) || selected <= today || selected > latest ||
-          !['8:00 AM', '10:00 AM', '1:00 PM', '3:00 PM'].includes(details.timeSlot) ||
+          !getServiceSlots(service).includes(details.timeSlot) ||
           !['Pay after service', 'Demo card'].includes(details.paymentMethod) ||
           (details.promoCode !== null && details.promoCode !== 'GIGA10')) {
         throw new Error('Choose a valid date, time, and payment preview.');
       }
       const total = details.promoCode === 'GIGA10' ? Math.round(service.price * 0.9) : service.price;
+      // A date and time that someone already booked is reserved for them (until the provider declines or cancels it).
+      const slotTaken = state.requests.some((item) => item.id !== requestId && item.serviceId === service.id && item.status === 'Placed (demo)' &&
+        item.checkout?.scheduledDate === details.scheduledDate && item.checkout?.timeSlot === details.timeSlot &&
+        item.providerStatus !== 'declined' && item.providerStatus !== 'cancelled');
+      if (slotTaken) throw new Error('That time is already reserved. Please pick another time.');
       // Tell the provider: send the booking to the shared database (only for services providers added in the app).
       let providerNotified = false;
       if (service.ownerId && session) {
@@ -501,7 +565,8 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
             total,
           });
           providerNotified = true;
-        } catch {
+        } catch (error) {
+          if (error instanceof Error && error.message === 'SLOT_TAKEN') throw new Error('That time was just reserved by someone else. Please pick another time.');
           providerNotified = false;
         }
       }
@@ -533,6 +598,19 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
     },
+    myRatings,
+    rateRequest: async (requestId, stars, comment = '') => {
+      const request = state.requests.find((item) => item.id === requestId);
+      if (!request || !sessionUser) throw new Error('Sign in to rate this service.');
+      if (request.providerStatus !== 'completed') throw new Error('You can rate a service once the provider marks it as done.');
+      if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new Error('Choose 1 to 5 stars.');
+      const meta = session?.user.user_metadata ?? {};
+      const savedName = state.profile.name && state.profile.name !== 'Guest' ? state.profile.name : '';
+      const customerName = savedName || String(meta.name ?? '').trim() || 'Customer';
+      await insertRemoteRating(requestId, request.serviceId, stars, comment.slice(0, 500), customerName);
+      setMyRatings((previous) => ({ ...previous, [requestId]: stars }));
+      loadRatings();
+    },
     updateProfile: (profile) => save({ ...state, profile }),
     setNotificationsEnabled: (notificationsEnabled) => save({ ...state, notificationsEnabled }),
     signOut: async () => {
@@ -542,7 +620,7 @@ export function MarketplaceProvider({ children }: { children: React.ReactNode })
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setState(next);
     },
-  }), [state, hydrated, bookings, bookingAlert, requestAlert, sessionUser, session]);
+  }), [state, ratedCustomServices, myRatings, hydrated, bookings, bookingAlert, requestAlert, sessionUser, session]);
 
   return <MarketplaceContext.Provider value={value}>{children}</MarketplaceContext.Provider>;
 }

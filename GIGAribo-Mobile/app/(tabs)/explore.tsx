@@ -35,8 +35,10 @@ export default function ExploreScreen() {
   // Services providers added in the app, newest first (paused ones are hidden). Shown on top so they are easy to find.
   const newFromProviders = useMemo(() => customServices.filter((service) => {
     if (service.active === false) return false;
+    // Only show providers in the chosen category (e.g. no Catering while Carpentry is selected).
+    if (selected && service.category !== selected) return false;
     return `${service.title} ${service.subtitle} ${service.provider}`.toLowerCase().includes(query.toLowerCase());
-  }), [customServices, query]);
+  }), [customServices, query, selected]);
 
   return (
     <Page tabbed>
